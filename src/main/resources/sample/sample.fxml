@@ -7,7 +7,7 @@
 <?import java.lang.*?>
 <?import javafx.scene.layout.*?>
 
-<BorderPane fx:controller="sample.Controller" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1">
+<BorderPane xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="sample.Controller">
    <top>
       <AnchorPane prefHeight="64.0" prefWidth="665.0" BorderPane.alignment="CENTER">
          <children>
@@ -37,7 +37,7 @@
                   <Label alignment="CENTER" text="升级工具" />
                   <ComboBox prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" />
                   <Label text="端口号" GridPane.rowIndex="1" />
-                  <ComboBox prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                  <ComboBox fx:id="portBox" prefHeight="31.0" prefWidth="91.0" promptText="端口号" GridPane.columnIndex="1" GridPane.rowIndex="1" />
                   <Label text="波特率" GridPane.rowIndex="2" />
                   <ComboBox prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="2" />
                   <Label text="车型" GridPane.rowIndex="3" />
@@ -47,7 +47,7 @@
             <VBox alignment="CENTER" spacing="2.0" />
             <VBox alignment="TOP_CENTER" prefHeight="247.0" prefWidth="214.0" spacing="20.0">
                <children>
-                  <Button mnemonicParsing="false" onAction="#showDateTime" text="开始连接" />
+                  <Button mnemonicParsing="false" onAction="#onOpenSerialPort" text="开始连接" />
                   <Button mnemonicParsing="false" text="加载文件" />
                   <Button layoutX="10.0" layoutY="10.0" mnemonicParsing="false" text="开始升级" />
                </children>

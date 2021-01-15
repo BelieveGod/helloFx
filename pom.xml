@@ -12,6 +12,7 @@
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <lombok.version>1.18.16</lombok.version>
     </properties>
 
     <dependencies>
@@ -28,7 +29,38 @@
             <version>11.0.2</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/ch.qos.logback/logback-classic -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.2.3</version>
+        </dependency>
 
+
+        <!-- RXTX 依赖 -->
+        <dependency>
+            <groupId>com.neuronrobotics</groupId>
+            <artifactId>nrjavaserial</artifactId>
+            <version>5.2.1</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/nrjavaserial-5.2.1.jar</systemPath>
+        </dependency>
+
+        <!-- load java can lib -->
+        <dependency>
+            <groupId>tel.schich</groupId>
+            <artifactId>javacan</artifactId>
+            <version>3.0.0-SNAPSHOT</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/javacan-3.0.0-SNAPSHOT.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <optional>true</optional>
+        </dependency>
 
     </dependencies>
     <build>
