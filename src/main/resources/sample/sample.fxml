@@ -49,7 +49,7 @@
                <children>
                   <Button mnemonicParsing="false" onAction="#onOpenSerialPort" text="开始连接" />
                   <Button mnemonicParsing="false" onAction="#onLoadFile" text="加载文件" />
-                  <Button layoutX="10.0" layoutY="10.0" mnemonicParsing="false" text="开始升级" />
+                  <Button layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#onStartUpgrade" text="开始升级" />
                </children>
                <VBox.margin>
                   <Insets />

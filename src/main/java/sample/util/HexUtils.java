@@ -49,7 +49,7 @@ public class HexUtils {
     public static String hexStrings2hexString(String[] hexStrings){
         StringBuilder builder = new StringBuilder();
         for (String hexString : hexStrings) {
-            builder.append(hexString+" ");
+            builder.append(hexString);
         }
         return builder.toString();
 
@@ -104,7 +104,7 @@ public class HexUtils {
      * @return
      */
     public static short bytes2Short(byte[] bytes,int startPos){
-        if(startPos+2>=bytes.length){
+        if(startPos+2>bytes.length){
             throw new IndexOutOfBoundsException("转换short越界");
         }
 
@@ -132,5 +132,23 @@ public class HexUtils {
         i+=(bytes[startPos+4] & 0xff) << 24;
 
         return (short)i;
+    }
+
+    public static byte[] hexString2bytes(String hexString){
+
+        hexString = hexString.replaceAll(" ", "");
+        int len = hexString.length();
+        if(hexString.length()%2!=0){
+            throw new IllegalArgumentException("不合规格的字符串");
+        }
+        byte[] bytes = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            // 两位一组，表示一个字节,把这样表示的16进制字符串，还原成一个字节
+            bytes[i / 2] = (byte) ((Character.digit(hexString.charAt(i), 16) << 4) + Character
+                    .digit(hexString.charAt(i+1), 16));
+        }
+        return bytes;
+
+
     }
 }

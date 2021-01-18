@@ -49,7 +49,7 @@ public class Controller implements Initializable {
 
     private final SerialPortService serialPortService = new SerialPortService();
 
-    private final CanService canService=new CanService();
+    private final CanService canService=new CanService(serialPortService);
 
 
     public void initialize(URL url, ResourceBundle resourceBundle) {
@@ -60,7 +60,6 @@ public class Controller implements Initializable {
             Iterator<Entry<String, String>> iterator = stringMap.entrySet().iterator();
             while (iterator.hasNext()) {
                 Entry<String, String> next = iterator.next();
-                System.out.println(next.getKey() + "->" + next.getValue());
                 portBox.getItems().add(next.getValue());
             }
         }
@@ -87,16 +86,10 @@ public class Controller implements Initializable {
         portParam.setStopBits(PortParam.STOPBITS_1);
         portParam.setParity(PortParam.PARITY_NONE);
 
-        AgxResult agxResult = serialPortService.openSerialPort(portParam);
-        if (agxResult.getCode().equals(200)) {
-            textArea.appendText("打开串口成功\n");
-        } else {
-            textArea.appendText("打开串口失败\n");
-        }
+
 
         // can
-        canService.SendExcuteCMD(canStatus);
-
+        canService.Connect(canStatus,portParam);
     }
 
     /**
@@ -115,7 +108,6 @@ public class Controller implements Initializable {
             System.out.println("未选择");
             return;
         }
-        System.out.println("file.getAbsoluteFile() = " + file.getAbsoluteFile());
         byte[] bytes1 = FileUtils.readFileToByteArray(file.getAbsoluteFile());
         ArrayList<Byte> fileBytes = new ArrayList<>();
         fileBytes.addAll(Arrays.asList(ByteUtils.boxed(bytes1)));
@@ -128,7 +120,6 @@ public class Controller implements Initializable {
 
         // todo 判断读取数据是否为升级文件
         System.out.println("读取完毕");
-        fileBytes.clear();
     }
 
     /**
@@ -138,6 +129,8 @@ public class Controller implements Initializable {
      */
     public void onStartUpgrade(ActionEvent event) {
         System.out.println("开始升级");
+        canService.upgrade(canStatus);
+
     }
 
 

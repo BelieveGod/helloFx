@@ -10,16 +10,20 @@ import lombok.extern.slf4j.Slf4j;
 import sample.exception.OpendPortException;
 import sample.support.AgxResult;
 import sample.support.PortParam;
+import sample.util.HexUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TooManyListenersException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author LTJ
@@ -32,6 +36,7 @@ public class SerialPortService {
     // 应用程序唯一的串口对象
     private CommPortIdentifier theCommPortIdentifier;
     private SerialPort theSerialPort;
+    private AtomicInteger count=new AtomicInteger(0);
 
     /**
      * 列出所有可用串口
@@ -63,6 +68,7 @@ public class SerialPortService {
     public AgxResult openSerialPort(PortParam portParam){
         //  这里应该为了最稳妥的起见，不是null的话就当作打开了串口，逻辑后续再理。
         if(theCommPortIdentifier !=null && theSerialPort!=null){
+            theSerialPort.close();
             throw new OpendPortException("串口已经打开");
         }
 
@@ -106,15 +112,20 @@ public class SerialPortService {
     public void writeData(byte[] data,int off,int n) throws IOException {
         OutputStream outputStream = theSerialPort.getOutputStream();
         outputStream.write(data,off,n);
-        outputStream.close();
+//        outputStream.flush();
+        Arrays.stream(HexUtils.bytesToHexStrings(data, off, n)).forEach(System.out::print);
+//        outputStream.close();
     }
 
     /**
      * 读数据
      */
-    public void addEventListener(SerialPortEventListener listener) throws IOException {
-        InputStream inputStream = theSerialPort.getInputStream();
+    public void addEventListener(SerialPortEventListener listener) throws IOException, TooManyListenersException {
+        theSerialPort.addEventListener(listener);
 
     }
 
+    public SerialPort getTheSerialPort() {
+        return theSerialPort;
+    }
 }

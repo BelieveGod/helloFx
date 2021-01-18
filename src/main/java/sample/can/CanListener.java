@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 public class CanListener implements SerialPortEventListener {
@@ -23,6 +24,8 @@ public class CanListener implements SerialPortEventListener {
     private List<String> reveivedData = new LinkedList<>();
     private SerialPort serialPort;
     private InputStream in;
+    private AtomicInteger count = new AtomicInteger(0);
+    private AtomicInteger count2 = new AtomicInteger(0);
 
     public CanListener(SerialPort serialPort) throws IOException {
         this.serialPort = serialPort;
@@ -47,7 +50,7 @@ public class CanListener implements SerialPortEventListener {
                 // 1. 读取数据
 
                 readComm();
-
+                System.out.println(Thread.currentThread().getName());
                 // 父类的模板方法
                 handle();
                 break;
@@ -59,39 +62,33 @@ public class CanListener implements SerialPortEventListener {
     private void handle() {
         // 如果长度够一个帧
         while(reveivedData.size()>= CmdFrame.sizeOf){
-            if(reveivedData.get(0)!="aa" || reveivedData.get(1)!="55" || reveivedData.get(CmdFrame.sizeOf-1)!="fe"){
+            if(!reveivedData.get(0).equals("aa") || !reveivedData.get(1).equals("55") || !reveivedData.get(CmdFrame.sizeOf-1).equals("fe")){
                 reveivedData.remove(0);
                 continue;
             }
-
             List<String> temp = reveivedData.subList(0, CmdFrame.sizeOf);
+            System.out.println("捕获指令 = " + HexUtils.hexStrings2hexString(temp.toArray(new String[0])));
             byte[] bytes = HexUtils.hexStrings2bytes(temp.toArray(new String[0]));
             CmdFrame cmd_ack = CmdFrame.from(bytes);
             CanStatus canStatus = CanStatus.getInstance();
             canStatus.cmd_status=(byte)(cmd_ack.canId &0x0f);
             canStatus.ack_node_id= (byte)(cmd_ack.canId>>4 & 0xff);
             if(cmd_ack.dataLen!=0){
-
                 System.arraycopy(cmd_ack.data, 0, canStatus.can_rx_buf, 0, cmd_ack.dataLen);
             }
-
             // 清理报文
             temp.clear();
             // 注意是否会有比较错误的问题
             try {
                 if(canStatus.cmd_status == CmdList.CMD_SUCCESS && canStatus.ack_node_id == canStatus.nodeId){
                     canStatus.result.put(true);
-
                 }
                 else{
                     canStatus.result.put(false);
                 }
-                System.out.println("canStatus.result.size() = " + canStatus.result.size());
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-
-
         }
     }
 
@@ -109,8 +106,8 @@ public class CanListener implements SerialPortEventListener {
                 if (1 > k) {
                     break;
                 }
-                log.trace("接收指令：{}", HexUtils.hexStrings2hexString(dataHex));
-                log.trace("接收指令字符格式：{}", new String(readBuffer,0,k));
+//                log.info("读取的数据：{}", HexUtils.hexStrings2hexString(dataHex));
+//                System.out.println("读取的数据:"+ HexUtils.hexStrings2hexString(dataHex));
             }
         } catch (IOException e) {
             e.printStackTrace();
