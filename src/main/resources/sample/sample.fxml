@@ -50,6 +50,7 @@
                   <Button fx:id="openBtn" mnemonicParsing="false" onAction="#onOpenSerialPort" text="开始连接" />
                   <Button fx:id="loadBtn" mnemonicParsing="false" onAction="#onLoadFile" text="加载文件" />
                   <Button fx:id="upgrateBtn" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#onStartUpgrade" text="开始升级" />
+                  <Button fx:id="loadBtn2" layoutX="78.0" layoutY="106.0" mnemonicParsing="false" onAction="#onLoadFileNetwork" text="联网升级" />
                </children>
                <VBox.margin>
                   <Insets />

@@ -1,5 +1,6 @@
 package sample;
 
+import cn.hutool.http.HttpUtil;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -216,6 +217,42 @@ public class Controller implements Initializable {
             }
         };
 
+        executorService.submit(task);
+
+        task.setOnSucceeded(new EventHandler<WorkerStateEvent>() {
+            @Override
+            public void handle(WorkerStateEvent workerStateEvent) {
+                loadBtn.setDisable(false);
+                progressBar.setProgress(0);
+                openBtn.setDisable(false);
+
+            }
+        });
+    }
+
+
+    public void onLoadFileNetwork(ActionEvent event){
+        Task<Boolean> task=new Task<>(){
+            @Override
+            protected Boolean call() throws Exception {
+                byte[] bytes1=HttpUtil.downloadBytes("http://localhost/file/BFF-V2.0-3-0-g8c21336(4850驱动器).bin");
+                ArrayList<Byte> fileBytes = new ArrayList<>();
+                fileBytes.addAll(Arrays.asList(ByteUtils.boxed(bytes1)));
+                canStatus.version = getVersion(fileBytes);
+                canStatus.data = fileBytes.subList(canStatus.version.size(), fileBytes.size());
+                canStatus.nodeId = (byte) getNodeId(canStatus.version).intValue();
+                System.out.println("字节数:" + canStatus.data.size());
+                System.out.println(ByteUtils.getString(canStatus.version));
+                System.out.println();
+
+                // todo 判断读取数据是否为升级文件
+                System.out.println("读取完毕");
+                textArea.appendText("读取完毕");
+                progressBar.setProgress(100);
+                this.succeeded();
+                return null;
+            }
+        };
         executorService.submit(task);
 
         task.setOnSucceeded(new EventHandler<WorkerStateEvent>() {

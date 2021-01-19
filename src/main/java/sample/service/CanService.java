@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.TooManyListenersException;
 import java.util.concurrent.TimeUnit;
 
-import static sample.can.dto.CmdList.CAN_BL_BOOT;
+import static sample.can.dto.CmdList.*;
 
 /**
  * @author LTJ
@@ -54,7 +54,7 @@ public class CanService {
             Thread.sleep(10);
             System.out.println("\nSendExcuteCMD:");
             serialPortService.writeData(bytes,0,bytes.length);
-            if(CAN_BL_MODE == CAN_BL_BOOT){
+            if(CAN_BL_MODE == CAN_BL_APP){
                 Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
                 if(poll==null){
                     System.out.println("超时");
@@ -308,7 +308,13 @@ public class CanService {
         }
         System.out.println("擦除成功");
         System.out.println("传输开始");
-        return transform(canStatus);
+        boolean transformFlag = transform(canStatus);
+        if(transformFlag){
+            System.out.println("传输成功");
+        }else{
+            System.out.println("传输失败");
+        }
+        return transformFlag;
 
 
 
@@ -357,9 +363,8 @@ public class CanService {
 
             }
         } // end of writeData forEach
-        System.out.println("传输成功");
-        SendExcuteCMD(canStatus,CmdList.CAN_BL_APP);
-        return true;
+
+        return SendExcuteCMD(canStatus, CAN_BL_APP);
     }
 
     // 拿数据
