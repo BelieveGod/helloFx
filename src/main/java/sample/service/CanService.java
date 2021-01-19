@@ -45,16 +45,26 @@ public class CanService {
         excute_fw_cmd.data[0]=(byte)(CAN_BL_MODE>>24);
         excute_fw_cmd.data[1]=(byte)(CAN_BL_MODE>>16);
         excute_fw_cmd.data[2]=(byte)(CAN_BL_MODE>>8);
-        excute_fw_cmd.data[3]=(byte)(CAN_BL_BOOT);
+        excute_fw_cmd.data[3]=(byte)(CAN_BL_MODE);
         excute_fw_cmd.tailer = (short)0xfe00;
 
         byte[] bytes = excute_fw_cmd.getBytes();
         canStatus.cmd_status=0;
         try {
-            System.out.println("\nSendExcuteCMD");
+            Thread.sleep(10);
+            System.out.println("\nSendExcuteCMD:");
             serialPortService.writeData(bytes,0,bytes.length);
-        } catch (IOException e) {
+            if(CAN_BL_MODE == CAN_BL_BOOT){
+                Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+                if(poll==null){
+                    System.out.println("超时");
+                    return false;
+                }
+            }
+
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
+            return false;
         }
 
         boolean b = sendCheckCMD(canStatus);
@@ -76,12 +86,13 @@ public class CanService {
         byte[] bytes = excute_fw_cmd.getBytes();
         canStatus.cmd_status=0;
         try {
+            Thread.sleep(30);
             System.out.println("\nsendCheckCMD");
             serialPortService.writeData(bytes,0,bytes.length);
 
             // 源码sleep(100)
-            Boolean poll = canStatus.result.take();
-//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+//            Boolean poll = canStatus.result.take();
+            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
             if(poll==null){
                 System.out.println("超时");
                 return false;
@@ -120,12 +131,12 @@ public class CanService {
         byte[] bytes = excute_fw_cmd.getBytes();
         canStatus.cmd_status=0;
         try {
+            Thread.sleep(10);
             System.out.println("\nsendVersionCMD");
             serialPortService.writeData(bytes,0,bytes.length);
 
-            // 源码sleep(100)
-            Boolean poll = canStatus.result.take();
-//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+//            Boolean poll = canStatus.result.take();
+            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
             if(poll){
                 // memcpy(version_buf,can_rx_buf,32);  不知道赋值局部变量的作用
                 return true;
@@ -152,19 +163,17 @@ public class CanService {
         excute_fw_cmd.frameLen=CmdFrame.sizeOf;
         excute_fw_cmd.dataLen=0;
         Arrays.fill(excute_fw_cmd.data, (byte)0);
-        byte[] version_buf = ByteUtils.deBoxed(canStatus.version.toArray(new Byte[0]));
-        System.arraycopy(version_buf,0,excute_fw_cmd.data,0,version_buf.length);
         excute_fw_cmd.tailer = (short)0xfe00;
 
         byte[] bytes = excute_fw_cmd.getBytes();
         canStatus.cmd_status=0;
         try {
+            Thread.sleep(10);
             System.out.println("\nsendGetVersionCMD");
             serialPortService.writeData(bytes,0,bytes.length);
 
-            // 源码sleep(100)
-//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
-            Boolean poll = canStatus.result.take();
+            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+//            Boolean poll = canStatus.result.take();
             if(poll){
                 // memcpy(version_buf,can_rx_buf,32);  不知道赋值局部变量的作用
                 System.arraycopy(canStatus.can_rx_buf,0,canStatus.getVersionBuf,0,canStatus.getVersionBuf.length);
@@ -266,9 +275,10 @@ public class CanService {
         byte[] bytes = excute_fw_cmd.getBytes();
         canStatus.cmd_status=0;
         try {
+            Thread.sleep(10);
             System.out.println("\nsendEraseFlashCmd");
             serialPortService.writeData(bytes,0,bytes.length);
-//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+//            Boolean poll = canStatus.result.poll(2,TimeUni.MILLISECONDS);
             Boolean poll = canStatus.result.take();
             if(poll==null){
                 System.out.println("超时");
@@ -287,7 +297,7 @@ public class CanService {
 
 
     public boolean upgrade(CanStatus canStatus){
-
+        canStatus.totalSize=canStatus.data.size();
 
         System.out.println("开始擦除");
 
@@ -307,14 +317,17 @@ public class CanService {
     private boolean transform(CanStatus canStatus){
 
         Arrays.fill(canStatus.writeDataBuf, (byte)0);
-        canStatus.totalSize=canStatus.data.size();
         canStatus.bytesToWrite=canStatus.totalSize;
 
         while(canStatus.bytesWritten<=canStatus.totalSize){
             fetchData(canStatus);
 
             if(canStatus.read_data_number>0){
-                canStatus.writeDataBuf = CrcUtil.setParamCRC(canStatus.writeDataBuf);
+                canStatus.writeDataBuf = CrcUtil.setParamCrcAdapter(canStatus.writeDataBuf,canStatus.read_data_number);
+                System.out.println("read_data_number:"+canStatus.read_data_number);
+//                String s =
+//                        HexUtils.hexStrings2hexString(HexUtils.bytesToHexStrings(canStatus.writeDataBuf, 0, 1024));
+//                System.out.println("s = " + s);
                 // 发送数据
                 int package_write_times = 0;
                 boolean sendDataPackageFlag = false;
@@ -338,6 +351,10 @@ public class CanService {
                     System.out.println("发送数据包失败");
                     return false;
                 }
+                System.out.println("发送数据包成功");
+                canStatus.bytesWritten+=canStatus.read_data_number;
+                canStatus.bytesToWrite -= canStatus.read_data_number;
+
             }
         } // end of writeData forEach
         System.out.println("传输成功");
@@ -348,18 +365,18 @@ public class CanService {
     // 拿数据
     private void fetchData(CanStatus canStatus) {
         if(canStatus.bytesToWrite>=1024){
-            List<Byte> dataToWrite = canStatus.data.subList(canStatus.bytesWritten, 1024);
+            List<Byte> dataToWrite = canStatus.data.subList(canStatus.bytesWritten, canStatus.bytesWritten+1024);
             canStatus.read_data_number=dataToWrite.size();
             for(int i=0;i<dataToWrite.size();i++){
                 canStatus.writeDataBuf[i]=dataToWrite.get(i);
             }
         }else{
-            List<Byte> dataToWrite = canStatus.data.subList(canStatus.bytesWritten, canStatus.bytesToWrite);
+            List<Byte> dataToWrite = canStatus.data.subList(canStatus.bytesWritten, canStatus.bytesWritten+canStatus.bytesToWrite);
             canStatus.read_data_number=dataToWrite.size();
             for(int i=0;i<dataToWrite.size();i++){
                 canStatus.writeDataBuf[i]=dataToWrite.get(i);
             }
-            Arrays.fill(canStatus.writeDataBuf, dataToWrite.size(), 1024 - dataToWrite.size(), (byte)0xff);
+            Arrays.fill(canStatus.writeDataBuf, dataToWrite.size(), 1024 , (byte)0xff);
             canStatus.read_data_number=1024;
         }
     }
@@ -378,10 +395,11 @@ public class CanService {
         byte[] bytes = packageFrame.getBytes();
         canStatus.cmd_status=0;
         try {
+            Thread.sleep(10);
             System.out.println("\nsendDataPackage");
             serialPortService.writeData(bytes,0,bytes.length);
-//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
-            Boolean poll = canStatus.result.take();
+            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+//            Boolean poll = canStatus.result.take();
             if(poll==null){
                 System.out.println("超时");
                 return false;
@@ -412,21 +430,22 @@ public class CanService {
         excute_fw_cmd.data[2]= (byte)(canStatus.bytesWritten>>8);
         excute_fw_cmd.data[3]= (byte)(canStatus.bytesWritten);
 
-        excute_fw_cmd.data[4]= (byte)(canStatus.bytesWritten>>24);
-        excute_fw_cmd.data[5]= (byte)(canStatus.bytesWritten>>16);
-        excute_fw_cmd.data[6]= (byte)(canStatus.bytesWritten>>8);
-        excute_fw_cmd.data[7]= (byte)(canStatus.bytesWritten);
+        excute_fw_cmd.data[4]= (byte)((canStatus.read_data_number+2)>>24);
+        excute_fw_cmd.data[5]= (byte)((canStatus.read_data_number+2)>>16);
+        excute_fw_cmd.data[6]= (byte)((canStatus.read_data_number+2)>>8);
+        excute_fw_cmd.data[7]= (byte)((canStatus.read_data_number+2));
 
         excute_fw_cmd.tailer = (short)0xfe00;
 
         byte[] bytes = excute_fw_cmd.getBytes();
         canStatus.cmd_status=0;
         try {
+            Thread.sleep(20);
             System.out.println("\nsendWriteInfoCmd");
             serialPortService.writeData(bytes,0,bytes.length);
 
-//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
-            Boolean poll = canStatus.result.take();
+            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+//            Boolean poll = canStatus.result.take();
             if(poll==null){
                 System.out.println("超时");
                 return false;

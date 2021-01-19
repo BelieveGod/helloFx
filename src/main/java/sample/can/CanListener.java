@@ -66,7 +66,7 @@ public class CanListener implements SerialPortEventListener {
                 continue;
             }
             List<String> temp = reveivedData.subList(0, CmdFrame.sizeOf);
-            System.out.println("捕获指令 = " + HexUtils.hexStrings2hexString(temp.toArray(new String[0])));
+            System.out.println("\n捕获指令 = " + HexUtils.hexStrings2hexString(temp.toArray(new String[0])));
             byte[] bytes = HexUtils.hexStrings2bytes(temp.toArray(new String[0]));
             CmdFrame cmd_ack = CmdFrame.from(bytes);
             CanStatus canStatus = CanStatus.getInstance();

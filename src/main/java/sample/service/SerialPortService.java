@@ -113,6 +113,7 @@ public class SerialPortService {
         OutputStream outputStream = theSerialPort.getOutputStream();
         outputStream.write(data,off,n);
 //        outputStream.flush();
+        System.out.print("\n输入指令:");
         Arrays.stream(HexUtils.bytesToHexStrings(data, off, n)).forEach(System.out::print);
         outputStream.close();
     }

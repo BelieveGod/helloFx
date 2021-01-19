@@ -197,7 +197,6 @@ public class Controller implements Initializable {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                Thread.sleep(2000);
                 byte[] bytes1 = FileUtils.readFileToByteArray(file.getAbsoluteFile());
                 ArrayList<Byte> fileBytes = new ArrayList<>();
                 fileBytes.addAll(Arrays.asList(ByteUtils.boxed(bytes1)));
