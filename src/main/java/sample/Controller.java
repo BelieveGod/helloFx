@@ -1,8 +1,11 @@
 package sample;
 
+import cn.hutool.http.HttpUtil;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.concurrent.ScheduledService;
 import javafx.concurrent.Task;
 import javafx.concurrent.WorkerStateEvent;
@@ -52,7 +55,15 @@ public class Controller implements Initializable {
     private ComboBox<String> portBox;
 
     @FXML
+    private ComboBox<String> operateTypeBox;
+
+
+
+    @FXML
     private Button loadBtn;
+
+    @FXML
+    private Button loadBtn2;
 
     @FXML
     private Button openBtn;
@@ -84,6 +95,9 @@ public class Controller implements Initializable {
         serialPortCheckService.setExecutor(executorService);
         serialPortCheckService.setPeriod(Duration.seconds(1));
         serialPortCheckService.start();
+        ObservableList<String> operateTypeList = FXCollections.<String>observableArrayList();
+        operateTypeList.addAll("USB转RS232", "USB转CAN");
+        operateTypeBox.setItems(operateTypeList);
 
         serialPortCheckService.valueProperty().addListener(new ChangeListener<List<Map<String, String>>>() {
             @SneakyThrows
@@ -119,9 +133,11 @@ public class Controller implements Initializable {
         portBox.getSelectionModel().selectFirst();
         selectedPortName=portBox.getValue();
 
+        // 按钮组
         openBtn.setDisable(true);
         loadBtn.setDisable(false);
         upgrateBtn.setDisable(true);
+        loadBtn2.setDisable(false);
     }
 
 
@@ -203,6 +219,12 @@ public class Controller implements Initializable {
                 canStatus.version = getVersion(fileBytes);
                 canStatus.data = fileBytes.subList(canStatus.version.size(), fileBytes.size());
                 canStatus.nodeId = (byte) getNodeId(canStatus.version).intValue();
+
+                this.updateMessage("\n加载的文件："+file.getAbsoluteFile());
+                this.updateMessage("\n字节数:" + canStatus.data.size());
+                this.updateMessage("\n升级固件版本为:"+ByteUtils.getString(canStatus.version));
+                this.updateMessage("\n升级的设备节点号:"+(canStatus.nodeId &0xff) );
+                this.updateMessage("\n\n加载完毕，可以开始升级固件！");
                 System.out.println("字节数:" + canStatus.data.size());
                 System.out.println(ByteUtils.getString(canStatus.version));
                 System.out.println();
@@ -225,6 +247,55 @@ public class Controller implements Initializable {
                 progressBar.setProgress(0);
                 openBtn.setDisable(false);
 
+            }
+        });
+        task.messageProperty().addListener(new ChangeListener<String>() {
+            @Override
+            public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
+                textArea.appendText(newValue);
+            }
+        });
+    }
+
+
+    public void onLoadFileNetwork(ActionEvent event){
+        Task<Boolean> task=new Task<>(){
+            @Override
+            protected Boolean call() throws Exception {
+                byte[] bytes1=HttpUtil.downloadBytes("http://localhost/file/BFF-V2.0-3-0-g8c21336(4850驱动器).bin");
+                ArrayList<Byte> fileBytes = new ArrayList<>();
+                fileBytes.addAll(Arrays.asList(ByteUtils.boxed(bytes1)));
+                canStatus.version = getVersion(fileBytes);
+                canStatus.data = fileBytes.subList(canStatus.version.size(), fileBytes.size());
+                canStatus.nodeId = (byte) getNodeId(canStatus.version).intValue();
+                System.out.println("字节数:" + canStatus.data.size());
+                System.out.println(ByteUtils.getString(canStatus.version));
+                System.out.println();
+
+                // todo 判断读取数据是否为升级文件
+                System.out.println("读取完毕");
+                textArea.appendText("读取完毕");
+                progressBar.setProgress(100);
+                this.succeeded();
+                return null;
+            }
+        };
+        executorService.submit(task);
+
+        task.setOnSucceeded(new EventHandler<WorkerStateEvent>() {
+            @Override
+            public void handle(WorkerStateEvent workerStateEvent) {
+                loadBtn.setDisable(false);
+                progressBar.setProgress(0);
+                openBtn.setDisable(false);
+
+            }
+        });
+
+        task.messageProperty().addListener(new ChangeListener<String>() {
+            @Override
+            public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
+                textArea.appendText(newValue);
             }
         });
     }

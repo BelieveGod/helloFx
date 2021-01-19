@@ -35,13 +35,13 @@
                </rowConstraints>
                <children>
                   <Label alignment="CENTER" text="升级工具" />
-                  <ComboBox prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" />
+                  <ComboBox fx:id="operateTypeBox" prefHeight="31.0" prefWidth="91.0" visibleRowCount="20" GridPane.columnIndex="1" />
                   <Label text="端口号" GridPane.rowIndex="1" />
                   <ComboBox fx:id="portBox" prefHeight="31.0" prefWidth="91.0" promptText="端口号" GridPane.columnIndex="1" GridPane.rowIndex="1" />
                   <Label text="波特率" GridPane.rowIndex="2" />
-                  <ComboBox prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+                  <ComboBox disable="true" prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="2" />
                   <Label text="车型" GridPane.rowIndex="3" />
-                  <ComboBox prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+                  <ComboBox disable="true" prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="3" />
                </children>
             </GridPane>
             <VBox alignment="CENTER" spacing="2.0" />
@@ -50,6 +50,7 @@
                   <Button fx:id="openBtn" mnemonicParsing="false" onAction="#onOpenSerialPort" text="开始连接" />
                   <Button fx:id="loadBtn" mnemonicParsing="false" onAction="#onLoadFile" text="加载文件" />
                   <Button fx:id="upgrateBtn" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#onStartUpgrade" text="开始升级" />
+                  <Button fx:id="loadBtn2" layoutX="78.0" layoutY="106.0" mnemonicParsing="false" onAction="#onLoadFileNetwork" text="联网升级" />
                </children>
                <VBox.margin>
                   <Insets />
