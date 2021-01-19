@@ -35,13 +35,13 @@
                </rowConstraints>
                <children>
                   <Label alignment="CENTER" text="升级工具" />
-                  <ComboBox prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" />
+                  <ComboBox fx:id="operateTypeBox" prefHeight="31.0" prefWidth="91.0" visibleRowCount="20" GridPane.columnIndex="1" />
                   <Label text="端口号" GridPane.rowIndex="1" />
                   <ComboBox fx:id="portBox" prefHeight="31.0" prefWidth="91.0" promptText="端口号" GridPane.columnIndex="1" GridPane.rowIndex="1" />
                   <Label text="波特率" GridPane.rowIndex="2" />
-                  <ComboBox prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+                  <ComboBox disable="true" prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="2" />
                   <Label text="车型" GridPane.rowIndex="3" />
-                  <ComboBox prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+                  <ComboBox disable="true" prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="3" />
                </children>
             </GridPane>
             <VBox alignment="CENTER" spacing="2.0" />
