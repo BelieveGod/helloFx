@@ -114,7 +114,7 @@ public class SerialPortService {
         outputStream.write(data,off,n);
 //        outputStream.flush();
         Arrays.stream(HexUtils.bytesToHexStrings(data, off, n)).forEach(System.out::print);
-//        outputStream.close();
+        outputStream.close();
     }
 
     /**

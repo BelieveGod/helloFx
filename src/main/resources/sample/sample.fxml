@@ -47,9 +47,9 @@
             <VBox alignment="CENTER" spacing="2.0" />
             <VBox alignment="TOP_CENTER" prefHeight="247.0" prefWidth="214.0" spacing="20.0">
                <children>
-                  <Button mnemonicParsing="false" onAction="#onOpenSerialPort" text="开始连接" />
-                  <Button mnemonicParsing="false" onAction="#onLoadFile" text="加载文件" />
-                  <Button layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#onStartUpgrade" text="开始升级" />
+                  <Button fx:id="openBtn" mnemonicParsing="false" onAction="#onOpenSerialPort" text="开始连接" />
+                  <Button fx:id="loadBtn" mnemonicParsing="false" onAction="#onLoadFile" text="加载文件" />
+                  <Button fx:id="upgrateBtn" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#onStartUpgrade" text="开始升级" />
                </children>
                <VBox.margin>
                   <Insets />
@@ -75,7 +75,7 @@
             <VBox layoutX="-64.0" layoutY="26.0" prefHeight="437.0" prefWidth="415.0">
                <children>
                   <TextArea fx:id="textArea" editable="false" minHeight="10.0" prefHeight="419.0" prefWidth="415.0" text="输出窗口" />
-                  <ProgressBar minHeight="10.0" prefHeight="15.0" prefWidth="415.0" progress="0.52" />
+                  <ProgressBar fx:id="progressBar" minHeight="10.0" prefHeight="15.0" prefWidth="415.0" progress="0.52" />
                </children>
             </VBox>
          </children>

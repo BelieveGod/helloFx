@@ -80,8 +80,8 @@ public class CanService {
             serialPortService.writeData(bytes,0,bytes.length);
 
             // 源码sleep(100)
-//            Boolean poll = canStatus.result.poll(200, TimeUnit.MILLISECONDS);
-            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+            Boolean poll = canStatus.result.take();
+//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
             if(poll==null){
                 System.out.println("超时");
                 return false;
@@ -124,8 +124,8 @@ public class CanService {
             serialPortService.writeData(bytes,0,bytes.length);
 
             // 源码sleep(100)
-//            Boolean poll = canStatus.result.poll(200, TimeUnit.MILLISECONDS);
-            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+            Boolean poll = canStatus.result.take();
+//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
             if(poll){
                 // memcpy(version_buf,can_rx_buf,32);  不知道赋值局部变量的作用
                 return true;
@@ -163,7 +163,8 @@ public class CanService {
             serialPortService.writeData(bytes,0,bytes.length);
 
             // 源码sleep(100)
-            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+            Boolean poll = canStatus.result.take();
             if(poll){
                 // memcpy(version_buf,can_rx_buf,32);  不知道赋值局部变量的作用
                 System.arraycopy(canStatus.can_rx_buf,0,canStatus.getVersionBuf,0,canStatus.getVersionBuf.length);
@@ -184,7 +185,7 @@ public class CanService {
 
 
 
-    public void Connect(CanStatus canStatus, PortParam portParam){
+    public boolean Connect(CanStatus canStatus, PortParam portParam){
         SerialPort theSerialPort = serialPortService.getTheSerialPort();
         if(theSerialPort!=null){
             serialPortService.closeSeriaPort();
@@ -194,7 +195,7 @@ public class CanService {
             System.out.println("打开串口成功\n");
         } else {
             System.out.println("打开串口失败\n");
-            return ;
+            return false;
         }
         try {
             theSerialPort = serialPortService.getTheSerialPort();
@@ -209,7 +210,7 @@ public class CanService {
         if(canStatus.nodeId==0){
             // 失败
             System.out.println("节点号错误");
-            return ;
+            return false;
         }
 
         int handshake_send_cnt=0;
@@ -221,30 +222,30 @@ public class CanService {
 
         if(!sendExcuteFlag){
             System.out.println("握手失败");
-            return;
+            return false;
         }
         System.out.println("sendExcuteFlag成功");
 
         boolean sendVersionFlag = sendVersionCMD(canStatus);
         if(!sendVersionFlag){
             System.out.println("\nsendVersionCMD 固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
-            return;
+            return false;
         }
         System.out.println("sendVersionCMD成功");
 
         if(canStatus.fwType != CAN_BL_BOOT || canStatus.ack_node_id != canStatus.nodeId){
             System.out.println("固件类型错误或者返回的节点ID错误，握手失败！");
-            return ;
+            return false;
         }
 
         boolean sendGetVersionFlag = sendGetVersionCMD(canStatus);
         if(!sendGetVersionFlag){
             System.out.println("sendGetVersionFlag 失败");
-            return;
+            return false;
         }
 
         System.out.println("连接成功");
-
+        return true;
 
     }
 
@@ -267,7 +268,8 @@ public class CanService {
         try {
             System.out.println("\nsendEraseFlashCmd");
             serialPortService.writeData(bytes,0,bytes.length);
-            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+            Boolean poll = canStatus.result.take();
             if(poll==null){
                 System.out.println("超时");
                 return false;
@@ -284,7 +286,7 @@ public class CanService {
     }
 
 
-    public void upgrade(CanStatus canStatus){
+    public boolean upgrade(CanStatus canStatus){
 
 
         System.out.println("开始擦除");
@@ -292,17 +294,17 @@ public class CanService {
         boolean sendEraseFlashCmdFlag = sendEraseFlashCmd(canStatus);
         if(!sendEraseFlashCmdFlag){
             System.out.println("擦除失败");
-            return;
+            return false;
         }
         System.out.println("擦除成功");
         System.out.println("传输开始");
-        transform(canStatus);
+        return transform(canStatus);
 
 
 
     }
 
-    private void transform(CanStatus canStatus){
+    private boolean transform(CanStatus canStatus){
 
         Arrays.fill(canStatus.writeDataBuf, (byte)0);
         canStatus.totalSize=canStatus.data.size();
@@ -327,19 +329,20 @@ public class CanService {
 
                     if (!sendWriteInfoCmdFlag) {
                         System.out.println("发送控制命令失败");
-                        return;
+                        return false;
                     }
                     sendDataPackageFlag = sendDataPackage(canStatus);
                     package_write_times++;
                 } while (!sendDataPackageFlag && package_write_times < 3);
                 if(!sendDataPackageFlag){
                     System.out.println("发送数据包失败");
-                    return;
+                    return false;
                 }
             }
         } // end of writeData forEach
         System.out.println("传输成功");
         SendExcuteCMD(canStatus,CmdList.CAN_BL_APP);
+        return true;
     }
 
     // 拿数据
@@ -377,7 +380,8 @@ public class CanService {
         try {
             System.out.println("\nsendDataPackage");
             serialPortService.writeData(bytes,0,bytes.length);
-            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+            Boolean poll = canStatus.result.take();
             if(poll==null){
                 System.out.println("超时");
                 return false;
@@ -421,7 +425,8 @@ public class CanService {
             System.out.println("\nsendWriteInfoCmd");
             serialPortService.writeData(bytes,0,bytes.length);
 
-            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+//            Boolean poll = canStatus.result.poll(2,TimeUnit.SECONDS);
+            Boolean poll = canStatus.result.take();
             if(poll==null){
                 System.out.println("超时");
                 return false;

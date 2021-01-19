@@ -50,7 +50,6 @@ public class CanListener implements SerialPortEventListener {
                 // 1. 读取数据
 
                 readComm();
-                System.out.println(Thread.currentThread().getName());
                 // 父类的模板方法
                 handle();
                 break;

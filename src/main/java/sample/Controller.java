@@ -1,15 +1,21 @@
 package sample;
 
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
+import javafx.concurrent.ScheduledService;
+import javafx.concurrent.Task;
+import javafx.concurrent.WorkerStateEvent;
 import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Node;
-import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
+import javafx.util.Duration;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import sample.can.CanStatus;
@@ -27,6 +33,8 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Slf4j
 public class Controller implements Initializable {
@@ -43,7 +51,25 @@ public class Controller implements Initializable {
     @FXML
     private ComboBox<String> portBox;
 
+    @FXML
+    private Button loadBtn;
+
+    @FXML
+    private Button openBtn;
+
+    @FXML
+    private Button upgrateBtn;
+
+    @FXML
+    private ProgressBar progressBar;
+
+    private ExecutorService executorService;
+
+    private SerialPortCheckService serialPortCheckService;
+
     private CanStatus canStatus = CanStatus.getInstance();
+
+    private String selectedPortName;
 
 
 
@@ -53,19 +79,49 @@ public class Controller implements Initializable {
 
 
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        System.out.println("controller:" + Thread.currentThread().getName());
-        Optional<List<Map<String, String>>> maps = serialPortService.listAllPorts();
-        List<Map<String, String>> maps1 = maps.get();
-        for (Map<String, String> stringMap : maps1) {
-            Iterator<Entry<String, String>> iterator = stringMap.entrySet().iterator();
-            while (iterator.hasNext()) {
-                Entry<String, String> next = iterator.next();
-                portBox.getItems().add(next.getValue());
+        executorService = Executors.newCachedThreadPool();
+        serialPortCheckService=new SerialPortCheckService();
+        serialPortCheckService.setExecutor(executorService);
+        serialPortCheckService.setPeriod(Duration.seconds(1));
+        serialPortCheckService.start();
+
+        serialPortCheckService.valueProperty().addListener(new ChangeListener<List<Map<String, String>>>() {
+            @SneakyThrows
+            @Override
+            public void changed(ObservableValue<? extends List<Map<String, String>>> observableValue, List<Map<String, String>> oldValue, List<Map<String, String>> newValue) {
+                List<Map<String, String>> portList = oldValue != null ? oldValue : newValue;
+                portBox.getItems().clear();
+                for (Map<String, String> stringMap : portList) {
+                    Iterator<Entry<String, String>> iterator = stringMap.entrySet().iterator();
+                    while (iterator.hasNext()) {
+                        Entry<String, String> next = iterator.next();
+                        String value = next.getValue();
+                        portBox.getItems().add(value);
+                        if(value.equals(selectedPortName)){
+                            portBox.getSelectionModel().selectLast();
+                        }
+                    }
+                }
             }
-        }
+        });
+
+
+
+        portBox.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
+            @Override
+            public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
+                if(newValue!=null){
+                    selectedPortName=newValue;
+                }
+            }
+        });
 
         portBox.getSelectionModel().selectFirst();
+        selectedPortName=portBox.getValue();
 
+        openBtn.setDisable(true);
+        loadBtn.setDisable(false);
+        upgrateBtn.setDisable(true);
     }
 
 
@@ -75,6 +131,9 @@ public class Controller implements Initializable {
      * @param event
      */
     public void onOpenSerialPort(ActionEvent event) {
+
+
+        openBtn.setDisable(true);
         String value = portBox.getValue();
         System.out.println("value = " + value);
         log.info("value={}", value);
@@ -86,10 +145,26 @@ public class Controller implements Initializable {
         portParam.setStopBits(PortParam.STOPBITS_1);
         portParam.setParity(PortParam.PARITY_NONE);
 
+        Task<Boolean> task = new Task<>() {
+            @Override
+            protected Boolean call() throws Exception {
+
+                return canService.Connect(canStatus, portParam);
+            }
+        };
+
+        task.valueProperty().addListener(new ChangeListener<Boolean>() {
+            @Override
+            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean neWValue) {
+//                System.out.println("oldValue = " + oldValue);
+//                System.out.println("neWValue = " + neWValue);
+                openBtn.setDisable(neWValue);
+                upgrateBtn.setDisable(!neWValue);
+            }
+        });
+        executorService.submit(task);
 
 
-        // can
-        canService.Connect(canStatus,portParam);
     }
 
     /**
@@ -99,6 +174,7 @@ public class Controller implements Initializable {
      */
     public void onLoadFile(ActionEvent event) throws IOException {
 
+        loadBtn.setDisable(true);
         Node source = (Node) event.getSource();
         Window window = source.getScene().getWindow();
         FileChooser fileChooser = new FileChooser();
@@ -106,20 +182,52 @@ public class Controller implements Initializable {
         File file = fileChooser.showOpenDialog(window);
         if (file == null) {
             System.out.println("未选择");
-            return;
+            loadBtn.setDisable(false);
+            return ;
         }
-        byte[] bytes1 = FileUtils.readFileToByteArray(file.getAbsoluteFile());
-        ArrayList<Byte> fileBytes = new ArrayList<>();
-        fileBytes.addAll(Arrays.asList(ByteUtils.boxed(bytes1)));
-        canStatus.version = getVersion(fileBytes);
-        canStatus.data = fileBytes.subList(canStatus.version.size(), fileBytes.size());
-        canStatus.nodeId = (byte)getNodeId(canStatus.version).intValue();
-        System.out.println("字节数:" + canStatus.data.size());
-        System.out.println(ByteUtils.getString(canStatus.version));
-        System.out.println();
 
-        // todo 判断读取数据是否为升级文件
-        System.out.println("读取完毕");
+        Task<Void> task = new Task<>() {
+            @Override
+
+            protected Void call() throws Exception {
+                System.out.println("onLoadFile = " + Thread.currentThread().getName());
+                try {
+                    openBtn.setDisable(true);
+                    progressBar.setProgress(50.0);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                Thread.sleep(2000);
+                byte[] bytes1 = FileUtils.readFileToByteArray(file.getAbsoluteFile());
+                ArrayList<Byte> fileBytes = new ArrayList<>();
+                fileBytes.addAll(Arrays.asList(ByteUtils.boxed(bytes1)));
+                canStatus.version = getVersion(fileBytes);
+                canStatus.data = fileBytes.subList(canStatus.version.size(), fileBytes.size());
+                canStatus.nodeId = (byte) getNodeId(canStatus.version).intValue();
+                System.out.println("字节数:" + canStatus.data.size());
+                System.out.println(ByteUtils.getString(canStatus.version));
+                System.out.println();
+
+                // todo 判断读取数据是否为升级文件
+                System.out.println("读取完毕");
+                textArea.appendText("读取完毕");
+                progressBar.setProgress(100);
+                this.succeeded();
+                return null;
+            }
+        };
+
+        executorService.submit(task);
+
+        task.setOnSucceeded(new EventHandler<WorkerStateEvent>() {
+            @Override
+            public void handle(WorkerStateEvent workerStateEvent) {
+                loadBtn.setDisable(false);
+                progressBar.setProgress(0);
+                openBtn.setDisable(false);
+
+            }
+        });
     }
 
     /**
@@ -128,8 +236,25 @@ public class Controller implements Initializable {
      * @param event
      */
     public void onStartUpgrade(ActionEvent event) {
+
         System.out.println("开始升级");
-        canService.upgrade(canStatus);
+        // 弹出模态窗口 todo
+        Task<Boolean> task = new Task<>() {
+            @Override
+            protected Boolean call() throws Exception {
+                return canService.upgrade(canStatus);
+            }
+        };
+
+        task.valueProperty().addListener(new ChangeListener<Boolean>() {
+            @Override
+            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
+
+            }
+        });
+
+        executorService.submit(task);
+
 
     }
 
@@ -152,5 +277,23 @@ public class Controller implements Initializable {
         return Integer.valueOf(substring, 16);
 
 
+    }
+
+
+    private class SerialPortCheckService extends ScheduledService<List<Map<String, String>>>{
+        @Override
+        protected Task<List<Map<String, String>> >createTask() {
+            return new Task<List<Map<String, String>>>() {
+                @Override
+                protected List<Map<String, String>> call() throws Exception {
+//                    System.out.println("SerialPortCheckService = " + Thread.currentThread().getName());
+
+                    Optional<List<Map<String, String>>> maps = serialPortService.listAllPorts();
+                    List<Map<String, String>> maps1 = maps.get();
+
+                    return maps1;
+                }
+            };
+        }
     }
 }
