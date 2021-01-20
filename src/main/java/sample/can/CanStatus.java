@@ -1,5 +1,8 @@
 package sample.can;
 
+import javafx.beans.property.SimpleBooleanProperty;
+import sample.Controller;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.BlockingDeque;
@@ -30,6 +33,7 @@ public class CanStatus {
     public List<Byte> data;
     public List<Byte> version;
     public byte nodeId;
+    public SimpleBooleanProperty isLoadFile=new SimpleBooleanProperty(false);
 
     // CanService.sendCheckCMD 获得的数据
     public int checkCmdVersion;
@@ -55,4 +59,6 @@ public class CanStatus {
     public byte[] writeDataBuf = new byte[1026];
 
 
+    // UI 相关
+    public Controller controller;
 }

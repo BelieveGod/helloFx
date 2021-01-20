@@ -1,7 +1,6 @@
 package sample;
 
 import cn.hutool.http.HttpUtil;
-import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -15,6 +14,9 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
 import javafx.util.Duration;
@@ -24,16 +26,12 @@ import org.apache.commons.io.FileUtils;
 import sample.can.CanStatus;
 import sample.service.CanService;
 import sample.service.SerialPortService;
-import sample.support.AgxResult;
 import sample.support.PortParam;
 import sample.util.ByteUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.nio.charset.Charset;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
@@ -43,36 +41,33 @@ import java.util.concurrent.Executors;
 public class Controller implements Initializable {
 
     @FXML
-    private Button myButton;
-
+    public GridPane comboxPane;
     @FXML
-    private TextField myTextField;
-
+    public VBox buttonPane;
     @FXML
-    private TextArea textArea;
-
+    public StackPane connectPane;
     @FXML
-    private ComboBox<String> portBox;
-
+    public Button myButton;
     @FXML
-    private ComboBox<String> operateTypeBox;
-
-
-
+    public TextArea textArea;
     @FXML
-    private Button loadBtn;
-
+    public ComboBox<String> portBox;
     @FXML
-    private Button loadBtn2;
-
+    public ComboBox<String> operateTypeBox;
     @FXML
-    private Button openBtn;
-
+    public Button loadBtn;
     @FXML
-    private Button upgrateBtn;
-
+    public Button loadBtn2;
     @FXML
-    private ProgressBar progressBar;
+    public Button connectBtn;
+    @FXML
+    public Button disConnectBtn;
+    @FXML
+    public Button upgrateBtn;
+    @FXML
+    public ProgressBar progressBar;
+    @FXML
+    public Label progressLabel;
 
     private ExecutorService executorService;
 
@@ -86,11 +81,16 @@ public class Controller implements Initializable {
 
     private final SerialPortService serialPortService = new SerialPortService();
 
-    private final CanService canService=new CanService(serialPortService);
+    private final CanService canService=new CanService(serialPortService,canStatus);
 
 
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        executorService = Executors.newCachedThreadPool();
+        canStatus.controller=this;
+        executorService = Executors.newCachedThreadPool(runable->{
+            Thread t = new Thread(runable);
+            t.setDaemon(true);
+            return t;
+        });
         serialPortCheckService=new SerialPortCheckService();
         serialPortCheckService.setExecutor(executorService);
         serialPortCheckService.setPeriod(Duration.seconds(1));
@@ -134,9 +134,17 @@ public class Controller implements Initializable {
         selectedPortName=portBox.getValue();
 
         // 按钮组
-        openBtn.setDisable(true);
+        connectBtn.disableProperty().bind(canStatus.isLoadFile.not());
+        disConnectBtn.visibleProperty().bind(connectBtn.visibleProperty().not());
+        upgrateBtn.disableProperty().bind(connectBtn.visibleProperty());
+        disConnectBtn.visibleProperty().addListener(new ChangeListener<Boolean>() {
+            @Override
+            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
+                loadBtn.setDisable(newValue);
+                loadBtn2.setDisable(newValue);
+            }
+        });
         loadBtn.setDisable(false);
-        upgrateBtn.setDisable(true);
         loadBtn2.setDisable(false);
     }
 
@@ -146,10 +154,9 @@ public class Controller implements Initializable {
      *
      * @param event
      */
-    public void onOpenSerialPort(ActionEvent event) {
-
-
-        openBtn.setDisable(true);
+    public void onConnectDevice(ActionEvent event) {
+        toogleConnectBtn();
+//        connectBtn.setDisable(true);
         String value = portBox.getValue();
         System.out.println("value = " + value);
         log.info("value={}", value);
@@ -160,6 +167,7 @@ public class Controller implements Initializable {
         portParam.setDataBits(PortParam.DATABITS_8);
         portParam.setStopBits(PortParam.STOPBITS_1);
         portParam.setParity(PortParam.PARITY_NONE);
+        textArea.appendText("\n正在连接，请稍后.....");
 
         Task<Boolean> task = new Task<>() {
             @Override
@@ -171,16 +179,36 @@ public class Controller implements Initializable {
 
         task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
-            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean neWValue) {
-//                System.out.println("oldValue = " + oldValue);
-//                System.out.println("neWValue = " + neWValue);
-                openBtn.setDisable(neWValue);
-                upgrateBtn.setDisable(!neWValue);
+            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
+                if(!newValue){
+                    disConnectBtn.fire();
+                }
+            }
+        });
+        task.messageProperty().addListener(new ChangeListener<String>() {
+            @Override
+            public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
+
+                textArea.appendText(newValue);
             }
         });
         executorService.submit(task);
+    }
 
+    /**
+     * todo
+     */
+    public void onDisconnectDevice(ActionEvent event){
+        toogleConnectBtn();
+        Task<Void> task = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                canService.disConnect();
 
+                return null;
+            }
+        };
+        executorService.submit(task);
     }
 
     /**
@@ -202,51 +230,49 @@ public class Controller implements Initializable {
             return ;
         }
 
-        Task<Void> task = new Task<>() {
+        Task<Boolean> task = new Task<>() {
             @Override
 
-            protected Void call() throws Exception {
-                System.out.println("onLoadFile = " + Thread.currentThread().getName());
-                try {
-                    openBtn.setDisable(true);
-                    progressBar.setProgress(50.0);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+            protected Boolean call() throws Exception {
                 byte[] bytes1 = FileUtils.readFileToByteArray(file.getAbsoluteFile());
                 ArrayList<Byte> fileBytes = new ArrayList<>();
                 fileBytes.addAll(Arrays.asList(ByteUtils.boxed(bytes1)));
                 canStatus.version = getVersion(fileBytes);
-                canStatus.data = fileBytes.subList(canStatus.version.size(), fileBytes.size());
-                canStatus.nodeId = (byte) getNodeId(canStatus.version).intValue();
 
-                this.updateMessage("\n加载的文件："+file.getAbsoluteFile());
-                this.updateMessage("\n字节数:" + canStatus.data.size());
-                this.updateMessage("\n升级固件版本为:"+ByteUtils.getString(canStatus.version));
-                this.updateMessage("\n升级的设备节点号:"+(canStatus.nodeId &0xff) );
-                this.updateMessage("\n\n加载完毕，可以开始升级固件！");
+                canStatus.data = fileBytes.subList(canStatus.version.size(), fileBytes.size());
+
+                try {
+                    canStatus.nodeId = (byte) getNodeId(canStatus.version).intValue();
+                } catch (Exception e) {
+                    this.updateMessage("\n加载的不是升级文件，请重新加载");
+                    this.failed();
+                    return false;
+                }
+
+                StringBuilder builder = new StringBuilder();
+                builder.append("\n加载的文件："+file.getAbsoluteFile())
+                       .append("\n字节数:" + canStatus.data.size())
+                       .append("\n升级固件版本为:"+ByteUtils.getString(canStatus.version))
+                       .append("\n升级的设备节点号:"+(canStatus.nodeId &0xff))
+                       .append("\n\n加载完毕，可以开始升级固件！");
+                this.updateMessage(builder.toString());
                 System.out.println("字节数:" + canStatus.data.size());
                 System.out.println(ByteUtils.getString(canStatus.version));
                 System.out.println();
 
                 // todo 判断读取数据是否为升级文件
                 System.out.println("读取完毕");
-                textArea.appendText("读取完毕");
-                progressBar.setProgress(100);
-                this.succeeded();
-                return null;
+                return true;
             }
         };
 
         executorService.submit(task);
 
-        task.setOnSucceeded(new EventHandler<WorkerStateEvent>() {
+        task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
-            public void handle(WorkerStateEvent workerStateEvent) {
+            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oleValue, Boolean newValue) {
                 loadBtn.setDisable(false);
-                progressBar.setProgress(0);
-                openBtn.setDisable(false);
-
+                canStatus.isLoadFile.set(newValue);
             }
         });
         task.messageProperty().addListener(new ChangeListener<String>() {
@@ -287,7 +313,7 @@ public class Controller implements Initializable {
             public void handle(WorkerStateEvent workerStateEvent) {
                 loadBtn.setDisable(false);
                 progressBar.setProgress(0);
-                openBtn.setDisable(false);
+                connectBtn.setDisable(false);
 
             }
         });
@@ -306,25 +332,30 @@ public class Controller implements Initializable {
      * @param event
      */
     public void onStartUpgrade(ActionEvent event) {
+        comboxPane.setDisable(true);
+        buttonPane.setDisable(true);
 
         System.out.println("开始升级");
         // 弹出模态窗口 todo
         Task<Boolean> task = new Task<>() {
             @Override
             protected Boolean call() throws Exception {
-                return canService.upgrade(canStatus);
+                boolean flag = canService.upgrade(canStatus);
+                comboxPane.setDisable(false);
+                buttonPane.setDisable(false);
+                return flag;
             }
         };
 
         task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
             public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
-
+//                disConnectBtn.fire();
             }
         });
 
-        executorService.submit(task);
 
+        executorService.submit(task);
 
     }
 
@@ -341,10 +372,14 @@ public class Controller implements Initializable {
         return new ArrayList<>();
     }
 
-    private Integer getNodeId(List<Byte> version) {
+    private Integer getNodeId(List<Byte> version) throws NumberFormatException{
         String s = ByteUtils.getString(version);
         String substring = s.substring(1, 3);
-        return Integer.valueOf(substring, 16);
+
+        Integer integer = null;
+        integer = Integer.valueOf(substring, 16);
+
+        return integer;
 
 
     }
@@ -365,5 +400,9 @@ public class Controller implements Initializable {
                 }
             };
         }
+    }
+
+    private void toogleConnectBtn(){
+        connectBtn.visibleProperty().setValue(!connectBtn.isVisible());
     }
 }
