@@ -110,6 +110,10 @@ public class SerialPortService {
      * 写数据
      */
     public void writeData(byte[] data,int off,int n) throws IOException {
+        if(theSerialPort==null){
+            System.out.println("串口没有打开，不能写入始数据");
+            return ;
+        }
         OutputStream outputStream = theSerialPort.getOutputStream();
         outputStream.write(data,off,n);
 //        outputStream.flush();

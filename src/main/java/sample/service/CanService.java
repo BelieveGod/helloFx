@@ -1,6 +1,8 @@
 package sample.service;
 
 import gnu.io.SerialPort;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
 import sample.can.CanListener;
 import sample.can.CanStatus;
 import sample.can.dto.CmdFrame;
@@ -28,13 +30,16 @@ import static sample.can.dto.CmdList.*;
  */
 public class CanService {
 
+    public static final int TIMEOUT = 3000;
     private SerialPortService serialPortService;
+    private CanStatus canStatus;
 
-    public CanService(SerialPortService serialPortService) {
+    public CanService(SerialPortService serialPortService,CanStatus canStatus) {
         this.serialPortService = serialPortService;
+        this.canStatus = canStatus;
     }
 
-    public boolean SendExcuteCMD(CanStatus canStatus,final int CAN_BL_MODE){
+    private boolean SendExcuteCMD(CanStatus canStatus,final int CAN_BL_MODE){
         CmdFrame excute_fw_cmd = new CmdFrame();
 
         excute_fw_cmd.header=0x55aa;
@@ -55,7 +60,7 @@ public class CanService {
             System.out.println("\nSendExcuteCMD:");
             serialPortService.writeData(bytes,0,bytes.length);
             if(CAN_BL_MODE == CAN_BL_APP){
-                Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+                Boolean poll = canStatus.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
                 if(poll==null){
                     System.out.println("超时");
                     return false;
@@ -92,7 +97,7 @@ public class CanService {
 
             // 源码sleep(100)
 //            Boolean poll = canStatus.result.take();
-            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+            Boolean poll = canStatus.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
             if(poll==null){
                 System.out.println("超时");
                 return false;
@@ -136,7 +141,11 @@ public class CanService {
             serialPortService.writeData(bytes,0,bytes.length);
 
 //            Boolean poll = canStatus.result.take();
-            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+            Boolean poll = canStatus.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
+            if(poll==null){
+                updateMessage("连接超时");
+                return false;
+            }
             if(poll){
                 // memcpy(version_buf,can_rx_buf,32);  不知道赋值局部变量的作用
                 return true;
@@ -172,8 +181,12 @@ public class CanService {
             System.out.println("\nsendGetVersionCMD");
             serialPortService.writeData(bytes,0,bytes.length);
 
-            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+            Boolean poll = canStatus.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
 //            Boolean poll = canStatus.result.take();
+            if(poll==null){
+                updateMessage("超时");
+                return false;
+            }
             if(poll){
                 // memcpy(version_buf,can_rx_buf,32);  不知道赋值局部变量的作用
                 System.arraycopy(canStatus.can_rx_buf,0,canStatus.getVersionBuf,0,canStatus.getVersionBuf.length);
@@ -201,8 +214,10 @@ public class CanService {
         }
         AgxResult agxResult = serialPortService.openSerialPort(portParam);
         if (agxResult.getCode().equals(200)) {
+            updateMessage("打开串口成功");
             System.out.println("打开串口成功\n");
         } else {
+            updateMessage("打开串口失败");
             System.out.println("打开串口失败\n");
             return false;
         }
@@ -218,6 +233,7 @@ public class CanService {
 
         if(canStatus.nodeId==0){
             // 失败
+            updateMessage("节点号错误");
             System.out.println("节点号错误");
             return false;
         }
@@ -230,6 +246,7 @@ public class CanService {
         }while(!sendExcuteFlag && canStatus.fwType != CAN_BL_BOOT && handshake_send_cnt<3);
 
         if(!sendExcuteFlag){
+            updateMessage("握手失败");
             System.out.println("握手失败");
             return false;
         }
@@ -237,25 +254,40 @@ public class CanService {
 
         boolean sendVersionFlag = sendVersionCMD(canStatus);
         if(!sendVersionFlag){
+            updateMessage("固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
             System.out.println("\nsendVersionCMD 固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
             return false;
         }
         System.out.println("sendVersionCMD成功");
 
         if(canStatus.fwType != CAN_BL_BOOT || canStatus.ack_node_id != canStatus.nodeId){
+            updateMessage("固件类型错误或者返回的节点ID错误，握手失败！");
             System.out.println("固件类型错误或者返回的节点ID错误，握手失败！");
             return false;
         }
 
         boolean sendGetVersionFlag = sendGetVersionCMD(canStatus);
         if(!sendGetVersionFlag){
+            updateMessage("获取固件版本失败");
             System.out.println("sendGetVersionFlag 失败");
             return false;
         }
 
+        updateMessage("连接成功");
         System.out.println("连接成功");
+        showConnectMessage();
         return true;
 
+    }
+
+    private void showConnectMessage() {
+        int version = canStatus.checkCmdVersion;
+        int a=(version>>24 & 0xff)*10 +(version>>16 & 0xff);
+        int b=(version>>8 & 0xff)*10 +(version & 0xff);
+        String c = new StringBuilder("当前BOOT固件版本号为：").append("v").append(a).append(".").append(b).toString();
+        updateMessage(c);
+        String s = new String(canStatus.getVersionBuf);
+        updateMessage(s);
     }
 
     private boolean sendEraseFlashCmd(CanStatus canStatus){
@@ -278,8 +310,8 @@ public class CanService {
             Thread.sleep(10);
             System.out.println("\nsendEraseFlashCmd");
             serialPortService.writeData(bytes,0,bytes.length);
-//            Boolean poll = canStatus.result.poll(2,TimeUni.MILLISECONDS);
-            Boolean poll = canStatus.result.take();
+            Boolean poll = canStatus.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
+//            Boolean poll = canStatus.result.take();
             if(poll==null){
                 System.out.println("超时");
                 return false;
@@ -288,7 +320,6 @@ public class CanService {
         } catch (IOException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
-            System.out.println("超时");
             return false;
         }
         // todo
@@ -300,23 +331,28 @@ public class CanService {
         canStatus.totalSize=canStatus.data.size();
 
         System.out.println("开始擦除");
+        updateMessage("开始擦除");
 
         boolean sendEraseFlashCmdFlag = sendEraseFlashCmd(canStatus);
         if(!sendEraseFlashCmdFlag){
             System.out.println("擦除失败");
+            updateMessage("擦除失败");
             return false;
         }
+        updateMessage("擦除成功");
         System.out.println("擦除成功");
         System.out.println("传输开始");
+        updateMessage("传输开始");
+        updateMessage("传输开始");
         boolean transformFlag = transform(canStatus);
         if(transformFlag){
-            System.out.println("传输成功");
+            updateMessage("升级成功");
+            System.out.println("升级成功");
         }else{
-            System.out.println("传输失败");
+            updateMessage("升级失败");
+            System.out.println("升级失败");
         }
         return transformFlag;
-
-
 
     }
 
@@ -324,7 +360,9 @@ public class CanService {
 
         Arrays.fill(canStatus.writeDataBuf, (byte)0);
         canStatus.bytesToWrite=canStatus.totalSize;
-
+        canStatus.bytesWritten=0;
+        double rate=(double)canStatus.bytesWritten/canStatus.totalSize;
+        updateProgress(rate);
         while(canStatus.bytesWritten<=canStatus.totalSize){
             fetchData(canStatus);
 
@@ -360,7 +398,8 @@ public class CanService {
                 System.out.println("发送数据包成功");
                 canStatus.bytesWritten+=canStatus.read_data_number;
                 canStatus.bytesToWrite -= canStatus.read_data_number;
-
+                rate=(double)canStatus.bytesWritten/canStatus.totalSize;
+                updateProgress(rate);
             }
         } // end of writeData forEach
 
@@ -403,7 +442,7 @@ public class CanService {
             Thread.sleep(10);
             System.out.println("\nsendDataPackage");
             serialPortService.writeData(bytes,0,bytes.length);
-            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+            Boolean poll = canStatus.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
 //            Boolean poll = canStatus.result.take();
             if(poll==null){
                 System.out.println("超时");
@@ -449,7 +488,7 @@ public class CanService {
             System.out.println("\nsendWriteInfoCmd");
             serialPortService.writeData(bytes,0,bytes.length);
 
-            Boolean poll = canStatus.result.poll(200,TimeUnit.MILLISECONDS);
+            Boolean poll = canStatus.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
 //            Boolean poll = canStatus.result.take();
             if(poll==null){
                 System.out.println("超时");
@@ -466,4 +505,27 @@ public class CanService {
         return false;
     }
 
+    private void updateMessage(String message){
+        Platform.runLater(()->{
+            canStatus.controller.textArea.appendText("\n"+message);
+        });
+    }
+
+    private void updateProgress(Double rate){
+        Platform.runLater(()->{
+            canStatus.controller.progressBar.setProgress(rate);
+            int d=(int)(rate*100);
+            canStatus.controller.progressLabel.setText(String.format("%d%%",d));
+        });
+    }
+
+    public void disConnect() {
+
+        AgxResult agxResult = serialPortService.closeSeriaPort();
+        if (agxResult.getCode() == 200) {
+            updateMessage("已关闭串口");
+        }else{
+            updateMessage("关闭串口失败");
+        }
+    }
 }

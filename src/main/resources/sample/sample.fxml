@@ -7,79 +7,104 @@
 <?import java.lang.*?>
 <?import javafx.scene.layout.*?>
 
-<BorderPane xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="sample.Controller">
-   <top>
-      <AnchorPane prefHeight="64.0" prefWidth="665.0" BorderPane.alignment="CENTER">
-         <children>
-            <Label layoutX="14.0" layoutY="25.0" text="Label" />
-            <Label layoutX="61.0" layoutY="25.0" text="Label" />
-         </children>
-         <BorderPane.margin>
-            <Insets />
-         </BorderPane.margin>
-      </AnchorPane>
-   </top>
-   <left>
-      <VBox prefHeight="457.0" prefWidth="200.0" BorderPane.alignment="CENTER">
-         <children>
-            <GridPane alignment="CENTER" hgap="5.0" prefHeight="235.0" prefWidth="214.0" vgap="5.0">
-               <columnConstraints>
-                  <ColumnConstraints halignment="CENTER" hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
-                  <ColumnConstraints halignment="CENTER" hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
-               </columnConstraints>
-               <rowConstraints>
-                  <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
-                  <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
-                  <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
-                  <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
-               </rowConstraints>
+<Group fx:id="rootGroup" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="sample.Controller">
+   <children>
+      <BorderPane>
+         <top>
+            <Group>
                <children>
-                  <Label alignment="CENTER" text="升级工具" />
-                  <ComboBox fx:id="operateTypeBox" prefHeight="31.0" prefWidth="91.0" visibleRowCount="20" GridPane.columnIndex="1" />
-                  <Label text="端口号" GridPane.rowIndex="1" />
-                  <ComboBox fx:id="portBox" prefHeight="31.0" prefWidth="91.0" promptText="端口号" GridPane.columnIndex="1" GridPane.rowIndex="1" />
-                  <Label text="波特率" GridPane.rowIndex="2" />
-                  <ComboBox disable="true" prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="2" />
-                  <Label text="车型" GridPane.rowIndex="3" />
-                  <ComboBox disable="true" prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+                  <AnchorPane prefHeight="64.0" prefWidth="665.0" BorderPane.alignment="CENTER">
+                     <children>
+                        <Label layoutX="14.0" layoutY="25.0" text="Label" />
+                        <Label layoutX="61.0" layoutY="25.0" text="Label" />
+                     </children>
+                     <BorderPane.margin>
+                        <Insets />
+                     </BorderPane.margin>
+                  </AnchorPane>
                </children>
-            </GridPane>
-            <VBox alignment="CENTER" spacing="2.0" />
-            <VBox alignment="TOP_CENTER" prefHeight="247.0" prefWidth="214.0" spacing="20.0">
+            </Group>
+         </top>
+         <left>
+            <Group>
                <children>
-                  <Button fx:id="openBtn" mnemonicParsing="false" onAction="#onOpenSerialPort" text="开始连接" />
-                  <Button fx:id="loadBtn" mnemonicParsing="false" onAction="#onLoadFile" text="加载文件" />
-                  <Button fx:id="upgrateBtn" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#onStartUpgrade" text="开始升级" />
-                  <Button fx:id="loadBtn2" layoutX="78.0" layoutY="106.0" mnemonicParsing="false" onAction="#onLoadFileNetwork" text="联网升级" />
+                  <VBox prefHeight="457.0" prefWidth="200.0" BorderPane.alignment="CENTER">
+                     <children>
+                        <GridPane fx:id="comboxPane" alignment="CENTER" hgap="5.0" prefHeight="235.0" prefWidth="214.0" vgap="5.0">
+                           <columnConstraints>
+                              <ColumnConstraints halignment="CENTER" hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+                              <ColumnConstraints halignment="CENTER" hgrow="SOMETIMES" minWidth="10.0" prefWidth="100.0" />
+                           </columnConstraints>
+                           <rowConstraints>
+                              <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                              <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                              <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                              <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                           </rowConstraints>
+                           <children>
+                              <Label alignment="CENTER" text="升级工具" />
+                              <ComboBox fx:id="operateTypeBox" prefHeight="31.0" prefWidth="91.0" visibleRowCount="20" GridPane.columnIndex="1" />
+                              <Label text="端口号" GridPane.rowIndex="1" />
+                              <ComboBox fx:id="portBox" prefHeight="31.0" prefWidth="91.0" promptText="端口号" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                              <Label text="波特率" GridPane.rowIndex="2" />
+                              <ComboBox disable="true" prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+                              <Label text="车型" GridPane.rowIndex="3" />
+                              <ComboBox disable="true" prefHeight="31.0" prefWidth="91.0" GridPane.columnIndex="1" GridPane.rowIndex="3" />
+                           </children>
+                        </GridPane>
+                        <VBox fx:id="buttonPane" alignment="TOP_CENTER" prefHeight="247.0" prefWidth="214.0" spacing="20.0">
+                           <children>
+                              <StackPane fx:id="connectPane">
+                                 <children>
+                                    <Button fx:id="disConnectBtn" layoutX="78.0" layoutY="10.0" mnemonicParsing="false" onAction="#onDisconnectDevice" text="断开连接" visible="false" />
+                                    <Button fx:id="connectBtn" mnemonicParsing="false" onAction="#onConnectDevice" text="开始连接" />
+                                 </children>
+                              </StackPane>
+                              <Button fx:id="loadBtn" mnemonicParsing="false" onAction="#onLoadFile" text="加载文件" />
+                              <Button fx:id="upgrateBtn" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#onStartUpgrade" text="开始升级" />
+                              <Button fx:id="loadBtn2" layoutX="78.0" layoutY="106.0" mnemonicParsing="false" onAction="#onLoadFileNetwork" text="联网升级" />
+                           </children>
+                           <VBox.margin>
+                              <Insets />
+                           </VBox.margin>
+                           <padding>
+                              <Insets top="10.0" />
+                           </padding>
+                        </VBox>
+                     </children>
+                  </VBox>
                </children>
-               <VBox.margin>
-                  <Insets />
-               </VBox.margin>
-               <padding>
-                  <Insets top="10.0" />
-               </padding>
-            </VBox>
-         </children>
-      </VBox>
-   </left>
-   <bottom>
-      <AnchorPane prefHeight="40.0" prefWidth="665.0" BorderPane.alignment="CENTER">
-         <children>
-            <Label layoutX="35.0" layoutY="18.0" text="Label" />
-            <Label layoutX="561.0" layoutY="18.0" text="Label" />
-         </children>
-      </AnchorPane>
-   </bottom>
-   <center>
-      <Group BorderPane.alignment="CENTER">
-         <children>
-            <VBox layoutX="-64.0" layoutY="26.0" prefHeight="437.0" prefWidth="415.0">
+            </Group>
+         </left>
+         <bottom>
+            <AnchorPane prefHeight="40.0" prefWidth="665.0" BorderPane.alignment="CENTER">
                <children>
-                  <TextArea fx:id="textArea" editable="false" minHeight="10.0" prefHeight="419.0" prefWidth="415.0" text="输出窗口" />
-                  <ProgressBar fx:id="progressBar" minHeight="10.0" prefHeight="15.0" prefWidth="415.0" progress="0.52" />
+                  <Label layoutX="35.0" layoutY="18.0" text="Label" />
+                  <Label layoutX="561.0" layoutY="18.0" text="Label" />
                </children>
-            </VBox>
-         </children>
-      </Group>
-   </center>
-</BorderPane>
+            </AnchorPane>
+         </bottom>
+         <center>
+            <Group BorderPane.alignment="CENTER">
+               <children>
+                  <Group fx:id="infoGroup">
+                     <children>
+                        <VBox layoutX="-64.0" layoutY="26.0" prefHeight="437.0" prefWidth="415.0">
+                           <children>
+                              <TextArea fx:id="textArea" editable="false" minHeight="10.0" prefHeight="419.0" prefWidth="415.0" text="输出窗口" />
+                              <StackPane maxWidth="415.0">
+                                 <children>
+                                    <ProgressBar fx:id="progressBar" minHeight="10.0" prefHeight="30.0" prefWidth="415.0" progress="0.0" />
+                                    <Label fx:id="progressLabel" text="0%" textFill="#ffa216" />
+                                 </children>
+                              </StackPane>
+                           </children>
+                        </VBox>
+                     </children>
+                  </Group>
+               </children>
+            </Group>
+         </center>
+      </BorderPane>
+   </children>
+</Group>
