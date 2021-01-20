@@ -1,5 +1,9 @@
 package sample.util;
 
+import org.apache.commons.lang3.ArrayUtils;
+
+import java.util.List;
+
 /**
  * @ClassName HexUtils
  * @Description 16进制数据处理的工具类
@@ -39,6 +43,16 @@ public class HexUtils {
 
         return bytesToHexStrings(bArray, 0, bArray.length);
     }
+
+    public static String bytesToHexString(byte[] brray,int offset,int length){
+        String[] strings = bytesToHexStrings(brray, offset, length);
+        return hexStrings2hexString(strings);
+    }
+
+    public static String bytesToHexString(byte[] brray){
+        return bytesToHexString(brray, 0, brray.length);
+    }
+
 
 
     /**
@@ -150,5 +164,11 @@ public class HexUtils {
         return bytes;
 
 
+    }
+
+    public static String bytesToHexString(List<Byte> list){
+        Byte[] bytes = list.toArray(new Byte[0]);
+        byte[] bytes1 = ArrayUtils.toPrimitive(bytes);
+        return bytesToHexString(bytes1);
     }
 }

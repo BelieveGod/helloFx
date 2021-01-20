@@ -13,7 +13,6 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
@@ -69,21 +68,21 @@ public class CanListener implements SerialPortEventListener {
             System.out.println("\n捕获指令 = " + HexUtils.hexStrings2hexString(temp.toArray(new String[0])));
             byte[] bytes = HexUtils.hexStrings2bytes(temp.toArray(new String[0]));
             CmdFrame cmd_ack = CmdFrame.from(bytes);
-            CanStatus canStatus = CanStatus.getInstance();
-            canStatus.cmd_status=(byte)(cmd_ack.canId &0x0f);
-            canStatus.ack_node_id= (byte)(cmd_ack.canId>>4 & 0xff);
+            CanContext canContext = CanContext.getInstance();
+            canContext.cmd_status=(byte)(cmd_ack.canId &0x0f);
+            canContext.ack_node_id= (byte)(cmd_ack.canId>>4 & 0xff);
             if(cmd_ack.dataLen!=0){
-                System.arraycopy(cmd_ack.data, 0, canStatus.can_rx_buf, 0, cmd_ack.dataLen);
+                System.arraycopy(cmd_ack.data, 0, canContext.can_rx_buf, 0, cmd_ack.dataLen);
             }
             // 清理报文
             temp.clear();
             // 注意是否会有比较错误的问题
             try {
-                if(canStatus.cmd_status == CmdList.CMD_SUCCESS && canStatus.ack_node_id == canStatus.nodeId){
-                    canStatus.result.put(true);
+                if(canContext.cmd_status == CmdList.CMD_SUCCESS && canContext.ack_node_id == canContext.nodeId){
+                    canContext.result.put(true);
                 }
                 else{
-                    canStatus.result.put(false);
+                    canContext.result.put(false);
                 }
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -105,8 +104,8 @@ public class CanListener implements SerialPortEventListener {
                 if (1 > k) {
                     break;
                 }
-//                log.info("读取的数据：{}", HexUtils.hexStrings2hexString(dataHex));
-//                System.out.println("读取的数据:"+ HexUtils.hexStrings2hexString(dataHex));
+//                log.info("\n读取的数据：{}", HexUtils.hexStrings2hexString(dataHex));
+//                System.out.println("\n读取的数据:"+ HexUtils.hexStrings2hexString(dataHex));
             }
         } catch (IOException e) {
             e.printStackTrace();

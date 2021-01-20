@@ -1,6 +1,7 @@
 package sample;
 
 import cn.hutool.http.HttpUtil;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -14,19 +15,24 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
 import javafx.util.Duration;
+import javafx.util.StringConverter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
-import sample.can.CanStatus;
-import sample.service.CanService;
+import sample.can.CanContext;
+import sample.can.CanStrategy;
+import sample.enumeration.OperationType;
 import sample.service.SerialPortService;
 import sample.support.PortParam;
+import sample.uart.UartContext;
+import sample.uart.UartStrategy;
 import sample.util.ByteUtils;
 
 import java.io.File;
@@ -53,7 +59,7 @@ public class Controller implements Initializable {
     @FXML
     public ComboBox<String> portBox;
     @FXML
-    public ComboBox<String> operateTypeBox;
+    public ComboBox<OperationType> operateTypeBox;
     @FXML
     public Button loadBtn;
     @FXML
@@ -73,19 +79,22 @@ public class Controller implements Initializable {
 
     private SerialPortCheckService serialPortCheckService;
 
-    private CanStatus canStatus = CanStatus.getInstance();
+    private CanContext canContext = CanContext.getInstance();
+    private UartContext uartContext = UartContext.getInstance();
 
     private String selectedPortName;
+    public SimpleBooleanProperty isLoadFile=new SimpleBooleanProperty(false);
 
 
 
     private final SerialPortService serialPortService = new SerialPortService();
 
-    private final CanService canService=new CanService(serialPortService,canStatus);
+//    private final CanStrategy canService=new CanStrategy(serialPortService, canContext);
+    private  OperateStrategy operateStrategy;;
 
 
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        canStatus.controller=this;
+        canContext.controller=this;
         executorService = Executors.newCachedThreadPool(runable->{
             Thread t = new Thread(runable);
             t.setDaemon(true);
@@ -95,9 +104,7 @@ public class Controller implements Initializable {
         serialPortCheckService.setExecutor(executorService);
         serialPortCheckService.setPeriod(Duration.seconds(1));
         serialPortCheckService.start();
-        ObservableList<String> operateTypeList = FXCollections.<String>observableArrayList();
-        operateTypeList.addAll("USB转RS232", "USB转CAN");
-        operateTypeBox.setItems(operateTypeList);
+
 
         serialPortCheckService.valueProperty().addListener(new ChangeListener<List<Map<String, String>>>() {
             @SneakyThrows
@@ -120,7 +127,6 @@ public class Controller implements Initializable {
         });
 
 
-
         portBox.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
             @Override
             public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
@@ -133,19 +139,43 @@ public class Controller implements Initializable {
         portBox.getSelectionModel().selectFirst();
         selectedPortName=portBox.getValue();
 
-        // 按钮组
-        connectBtn.disableProperty().bind(canStatus.isLoadFile.not());
-        disConnectBtn.visibleProperty().bind(connectBtn.visibleProperty().not());
-        upgrateBtn.disableProperty().bind(connectBtn.visibleProperty());
-        disConnectBtn.visibleProperty().addListener(new ChangeListener<Boolean>() {
+
+        operateTypeBox.setConverter(new StringConverter<OperationType>() {
             @Override
-            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
-                loadBtn.setDisable(newValue);
-                loadBtn2.setDisable(newValue);
+            public String toString(OperationType operationType) {
+                return operationType.getChinese();
+            }
+
+            @Override
+            public OperationType fromString(String s) {
+                return OperationType.get(s);
             }
         });
-        loadBtn.setDisable(false);
-        loadBtn2.setDisable(false);
+
+        ObservableList<OperationType> operateTypeList = FXCollections.observableArrayList();
+        operateTypeList.addAll(OperationType.CAN, OperationType.RS232);
+        operateTypeBox.setItems(operateTypeList);
+        operateTypeBox.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<OperationType>() {
+            @Override
+            public void changed(ObservableValue<? extends OperationType> observableValue, OperationType oldValue, OperationType newValue) {
+                if(newValue==null){
+                    return;
+                }
+                switch (newValue){
+                case RS232:
+// todo 切换逻辑
+                    break;
+                case CAN:
+                    break;
+                }
+            }
+        });
+        operateTypeBox.getSelectionModel().selectFirst();
+//        operateStrategy = new CanStrategy(serialPortService,canContext,this);
+        operateStrategy = new UartStrategy(serialPortService, uartContext, this);
+
+        operateStrategy.initUI(this);
+
     }
 
 
@@ -172,8 +202,7 @@ public class Controller implements Initializable {
         Task<Boolean> task = new Task<>() {
             @Override
             protected Boolean call() throws Exception {
-
-                return canService.Connect(canStatus, portParam);
+                return operateStrategy.connect(portParam);
             }
         };
 
@@ -183,13 +212,6 @@ public class Controller implements Initializable {
                 if(!newValue){
                     disConnectBtn.fire();
                 }
-            }
-        });
-        task.messageProperty().addListener(new ChangeListener<String>() {
-            @Override
-            public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
-
-                textArea.appendText(newValue);
             }
         });
         executorService.submit(task);
@@ -203,7 +225,7 @@ public class Controller implements Initializable {
         Task<Void> task = new Task<Void>() {
             @Override
             protected Void call() throws Exception {
-                canService.disConnect();
+                operateStrategy.disconnect();
 
                 return null;
             }
@@ -232,53 +254,16 @@ public class Controller implements Initializable {
 
         Task<Boolean> task = new Task<>() {
             @Override
-
             protected Boolean call() throws Exception {
-                byte[] bytes1 = FileUtils.readFileToByteArray(file.getAbsoluteFile());
-                ArrayList<Byte> fileBytes = new ArrayList<>();
-                fileBytes.addAll(Arrays.asList(ByteUtils.boxed(bytes1)));
-                canStatus.version = getVersion(fileBytes);
-
-                canStatus.data = fileBytes.subList(canStatus.version.size(), fileBytes.size());
-
-                try {
-                    canStatus.nodeId = (byte) getNodeId(canStatus.version).intValue();
-                } catch (Exception e) {
-                    this.updateMessage("\n加载的不是升级文件，请重新加载");
-                    this.failed();
-                    return false;
-                }
-
-                StringBuilder builder = new StringBuilder();
-                builder.append("\n加载的文件："+file.getAbsoluteFile())
-                       .append("\n字节数:" + canStatus.data.size())
-                       .append("\n升级固件版本为:"+ByteUtils.getString(canStatus.version))
-                       .append("\n升级的设备节点号:"+(canStatus.nodeId &0xff))
-                       .append("\n\n加载完毕，可以开始升级固件！");
-                this.updateMessage(builder.toString());
-                System.out.println("字节数:" + canStatus.data.size());
-                System.out.println(ByteUtils.getString(canStatus.version));
-                System.out.println();
-
-                // todo 判断读取数据是否为升级文件
-                System.out.println("读取完毕");
-                return true;
+                return operateStrategy.loadFile(file);
             }
         };
-
         executorService.submit(task);
-
         task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
             public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oleValue, Boolean newValue) {
                 loadBtn.setDisable(false);
-                canStatus.isLoadFile.set(newValue);
-            }
-        });
-        task.messageProperty().addListener(new ChangeListener<String>() {
-            @Override
-            public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
-                textArea.appendText(newValue);
+                isLoadFile.set(newValue);
             }
         });
     }
@@ -288,22 +273,8 @@ public class Controller implements Initializable {
         Task<Boolean> task=new Task<>(){
             @Override
             protected Boolean call() throws Exception {
-                byte[] bytes1=HttpUtil.downloadBytes("http://localhost/file/BFF-V2.0-3-0-g8c21336(4850驱动器).bin");
-                ArrayList<Byte> fileBytes = new ArrayList<>();
-                fileBytes.addAll(Arrays.asList(ByteUtils.boxed(bytes1)));
-                canStatus.version = getVersion(fileBytes);
-                canStatus.data = fileBytes.subList(canStatus.version.size(), fileBytes.size());
-                canStatus.nodeId = (byte) getNodeId(canStatus.version).intValue();
-                System.out.println("字节数:" + canStatus.data.size());
-                System.out.println(ByteUtils.getString(canStatus.version));
-                System.out.println();
-
-                // todo 判断读取数据是否为升级文件
-                System.out.println("读取完毕");
-                textArea.appendText("读取完毕");
-                progressBar.setProgress(100);
-                this.succeeded();
-                return null;
+                String url="http://localhost/file/BFF-V2.0-3-0-g8c21336(4850驱动器).bin";
+                return operateStrategy.loadFileOnNet(url);
             }
         };
         executorService.submit(task);
@@ -317,11 +288,11 @@ public class Controller implements Initializable {
 
             }
         });
-
-        task.messageProperty().addListener(new ChangeListener<String>() {
+        task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
-            public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
-                textArea.appendText(newValue);
+            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oleValue, Boolean newValue) {
+                loadBtn.setDisable(false);
+                isLoadFile.set(newValue);
             }
         });
     }
@@ -334,56 +305,29 @@ public class Controller implements Initializable {
     public void onStartUpgrade(ActionEvent event) {
         comboxPane.setDisable(true);
         buttonPane.setDisable(true);
-
         System.out.println("开始升级");
         // 弹出模态窗口 todo
         Task<Boolean> task = new Task<>() {
             @Override
             protected Boolean call() throws Exception {
-                boolean flag = canService.upgrade(canStatus);
+                boolean flag = operateStrategy.upgrade();
                 comboxPane.setDisable(false);
                 buttonPane.setDisable(false);
                 return flag;
             }
         };
-
         task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
             public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
 //                disConnectBtn.fire();
+                Alert alert = new Alert(AlertType.INFORMATION, "升级成功");
+                alert.showAndWait().ifPresent(response->{
+
+                });
             }
         });
-
-
         executorService.submit(task);
-
     }
-
-
-    private List<Byte> getVersion(List<Byte> fileByte) {
-        for (int i = 0; i < fileByte.size(); i++) {
-
-            if (i > 1) {
-                if (fileByte.get(i - 1) == (0x0d) && fileByte.get(i) == (0x0a)) {
-                    return fileByte.subList(0, i + 1);
-                }
-            }
-        }
-        return new ArrayList<>();
-    }
-
-    private Integer getNodeId(List<Byte> version) throws NumberFormatException{
-        String s = ByteUtils.getString(version);
-        String substring = s.substring(1, 3);
-
-        Integer integer = null;
-        integer = Integer.valueOf(substring, 16);
-
-        return integer;
-
-
-    }
-
 
     private class SerialPortCheckService extends ScheduledService<List<Map<String, String>>>{
         @Override

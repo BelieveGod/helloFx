@@ -1,28 +1,19 @@
 package sample.service;
 
-import gnu.io.CommPortIdentifier;
-import gnu.io.NoSuchPortException;
-import gnu.io.PortInUseException;
-import gnu.io.SerialPort;
-import gnu.io.SerialPortEventListener;
-import gnu.io.UnsupportedCommOperationException;
+import cn.hutool.core.util.ArrayUtil;
+import gnu.io.*;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ArrayUtils;
 import sample.exception.OpendPortException;
 import sample.support.AgxResult;
 import sample.support.PortParam;
+import sample.support.SerialObserver;
 import sample.util.HexUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.TooManyListenersException;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -37,11 +28,16 @@ public class SerialPortService {
     private CommPortIdentifier theCommPortIdentifier;
     private SerialPort theSerialPort;
     private AtomicInteger count=new AtomicInteger(0);
+    private List<Byte> readBuffer = new LinkedList<>();
+
+    // 存在多线程增删问题
+    private List<SerialObserver> observerList = new ArrayList<>();
+    public SerialListener serialListener=new SerialListener();
 
     /**
      * 列出所有可用串口
      */
-    public Optional<List<Map<String,String>>> listAllPorts(){
+    public static Optional<List<Map<String,String>>> listAllPorts(){
 
         List<Map<String,String>> serialPorts = new ArrayList();
 
@@ -77,6 +73,9 @@ public class SerialPortService {
             theSerialPort = theCommPortIdentifier.open("轨迹测量", 3000);
             theSerialPort.setSerialPortParams(portParam.getBauldRate(),portParam.getDataBits(),portParam.getStopBits(),portParam.getParity());
 
+            theSerialPort.addEventListener(new SerialListener());
+            theSerialPort.notifyOnDataAvailable(true);
+
         } catch (NoSuchPortException e) {
             log.error("不存在串口:"+portParam.getPortName(),e);
 
@@ -87,6 +86,8 @@ public class SerialPortService {
         } catch (UnsupportedCommOperationException e) {
             log.error("不支持的串口操作:"+portParam.getPortName(),e);
             return AgxResult.fail("不支持的串口操作",null);
+        } catch (TooManyListenersException e) {
+            e.printStackTrace();
         }
 
         return AgxResult.ok("打开串口成功",null);
@@ -103,6 +104,7 @@ public class SerialPortService {
         theSerialPort.close();
         theSerialPort =null;
         theCommPortIdentifier =null;
+        observerList.clear();
         return AgxResult.ok("关闭串口成功",null);
     }
 
@@ -122,6 +124,14 @@ public class SerialPortService {
         outputStream.close();
     }
 
+    public void addObserver(SerialObserver observer){
+        observerList.add(observer);
+    }
+
+    public void removeObserver(SerialObserver observer){
+
+    }
+
     /**
      * 读数据
      */
@@ -132,5 +142,62 @@ public class SerialPortService {
 
     public SerialPort getTheSerialPort() {
         return theSerialPort;
+    }
+
+    public class SerialListener implements SerialPortEventListener {
+        @Override
+        public void serialEvent(SerialPortEvent ev) {
+            switch (ev.getEventType()) {
+                case SerialPortEvent.BI:
+                case SerialPortEvent.OE:
+                case SerialPortEvent.FE:
+                case SerialPortEvent.PE:
+                case SerialPortEvent.CD:
+                case SerialPortEvent.CTS:
+                case SerialPortEvent.DSR:
+                case SerialPortEvent.RI:
+                case SerialPortEvent.OUTPUT_BUFFER_EMPTY:
+                    break;
+                case SerialPortEvent.DATA_AVAILABLE:
+                    // 数据接收处理函数
+                    // 1. 读取数据
+
+                    readComm();
+                    // 父类的模板方法
+                    inform();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void readComm(){
+            try (InputStream in=theSerialPort.getInputStream()){
+                int available = in.available();
+                byte[] tempBuffer = new byte[in.available()];
+                // k用来记录实际读取的字节数
+                int k = 0;
+                while ((k = in.read(tempBuffer)) != -1) {
+                    if (1 > k) {
+                        break;
+                    }
+                    String[] dataHex = HexUtils.bytesToHexStrings(tempBuffer, 0, k);
+                    String s = HexUtils.bytesToHexString(tempBuffer, 0, k);
+                    Byte[] bytes = ArrayUtils.toObject(tempBuffer);
+                    readBuffer.addAll(Arrays.asList(bytes).subList(0, k));
+                    // 读到结束符或者没有读入1个字符串就推出循环
+                    System.out.println("\n读取的数据： " + s);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        private void inform(){
+            for (SerialObserver serialObserver : observerList) {
+                // 这里同步调用，应该不会和读数据冲突
+                serialObserver.handle(readBuffer);
+            }
+        }
     }
 }

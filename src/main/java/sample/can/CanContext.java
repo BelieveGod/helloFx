@@ -1,6 +1,7 @@
 package sample.can;
 
 import javafx.beans.property.SimpleBooleanProperty;
+import sample.AgxContext;
 import sample.Controller;
 
 import java.util.Arrays;
@@ -11,13 +12,13 @@ import java.util.concurrent.LinkedBlockingDeque;
 /**
  * 单例CAN 状态，因为原本的C++代码用指针传值，java 没办法，改用统一状态管理
  */
-public class CanStatus {
+public class CanContext implements AgxContext {
 
-    private static class CanStatusHoler{
-        private static final CanStatus INSTANCE = new CanStatus();
+    private static class canContextHoler{
+        private static final CanContext INSTANCE = new CanContext();
     }
 
-    private CanStatus(){
+    private CanContext(){
         init();
     }
 
@@ -25,22 +26,22 @@ public class CanStatus {
         Arrays.fill(writeDataBuf,(byte)0);
     }
 
-    public static CanStatus getInstance(){
-        return CanStatusHoler.INSTANCE;
+    public static CanContext getInstance(){
+        return canContextHoler.INSTANCE;
     }
 
     // Controller.onLoadFile加载文件获得的数据
     public List<Byte> data;
     public List<Byte> version;
     public byte nodeId;
-    public SimpleBooleanProperty isLoadFile=new SimpleBooleanProperty(false);
 
-    // CanService.sendCheckCMD 获得的数据
+
+    // CanStrategy.sendCheckCMD 获得的数据
     public int checkCmdVersion;
     public int fwType;
 
 
-    // CanService.sendGetVersionCMD获得的数据
+    // CanStrategy.sendGetVersionCMD获得的数据
     public byte[] getVersionBuf = new byte[32];
     public boolean serial_is_open=false;
 
