@@ -42,7 +42,7 @@ public class UartStrategy extends AbstractStrategy {
     private SerialPortService serialPortService;
     private UartContext uartContext = UartContext.getInstance();
     private UartObserver observer;
-    private final int TIMEOUT=200*1000;
+    private final int TIMEOUT=200;
 
     public UartStrategy(SerialPortService serialPortService, UartContext uartContext,Controller controller) {
         this.serialPortService = serialPortService;
@@ -94,8 +94,8 @@ public class UartStrategy extends AbstractStrategy {
     protected boolean paserFile(byte[] file,String url){
         ArrayList<Byte> fileBytes = new ArrayList<>();
         fileBytes.addAll(Arrays.asList(ByteUtils.boxed(file)));
-        uartContext.version = getVersion(fileBytes);
-        uartContext.data = fileBytes.subList(uartContext.version.size(), fileBytes.size());
+        uartContext.version.addAll( getVersion(fileBytes));
+        uartContext.data.addAll(fileBytes.subList(uartContext.version.size(), fileBytes.size()));
         StringBuilder builder = new StringBuilder();
         builder.append("\n加载的文件："+url)
                .append("\n字节数:" + uartContext.data.size())
@@ -166,6 +166,7 @@ public class UartStrategy extends AbstractStrategy {
         }while(!sendResultFlag&&failTime<FAIL_TIME);
         if(!sendResultFlag){
             System.out.println("最后帧失败");
+            return false;
         }
         uartContext.writteenSize++;
         updateProgress((double)uartContext.writteenSize/uartContext.totalPackageSize);
@@ -334,7 +335,9 @@ public class UartStrategy extends AbstractStrategy {
     private int getSum(List<Byte> list) {
         int sum=0;
         for (Byte aByte : list) {
-            sum+=aByte;
+            // 这里有个坑，不转换的话是负数，源C++代码是无符号的数
+            int temp=(int)aByte & 0xff;
+            sum+=temp;
         }
         return sum;
 
@@ -419,7 +422,7 @@ public class UartStrategy extends AbstractStrategy {
 
     private void sendHandShakeChassisToApp(){
         System.out.println("\nsendHandShakeChassisToApp:");
-        sendMsgForChassis(UartCmd.APPToACK_HandShake);
+        sendMsgForChassis(UartCmd.HandShake_ChassisToApp);
     }
 
 

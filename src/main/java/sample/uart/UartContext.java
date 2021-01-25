@@ -49,8 +49,8 @@ public class UartContext implements AgxContext {
     public List<Byte> get_Version = new ArrayList<>();
 
     // 从加载文件中得到的数据
-    public List<Byte> version;
-    public List<Byte> data;
+    public List<Byte> version=new ArrayList<>();
+    public List<Byte> data=new ArrayList<>();;
 
     // UI
     public Controller controller;
