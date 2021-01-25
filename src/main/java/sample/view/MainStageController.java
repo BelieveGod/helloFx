@@ -1,6 +1,5 @@
-package sample;
+package sample.view;
 
-import cn.hutool.http.HttpUtil;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -8,32 +7,34 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.ScheduledService;
 import javafx.concurrent.Task;
-import javafx.concurrent.WorkerStateEvent;
 import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.util.Duration;
 import javafx.util.StringConverter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
+import sample.Main;
+import sample.OperateStrategy;
 import sample.can.CanContext;
 import sample.can.CanStrategy;
+import sample.component.FileChooseOnNet;
 import sample.enumeration.OperationType;
 import sample.service.SerialPortService;
 import sample.support.PortParam;
 import sample.uart.UartContext;
 import sample.uart.UartStrategy;
-import sample.util.ByteUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -44,16 +45,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Slf4j
-public class Controller implements Initializable {
-
+public class MainStageController implements Initializable {
     @FXML
     public GridPane comboxPane;
     @FXML
     public VBox buttonPane;
-    @FXML
-    public StackPane connectPane;
-    @FXML
-    public Button myButton;
     @FXML
     public TextArea textArea;
     @FXML
@@ -74,38 +70,61 @@ public class Controller implements Initializable {
     public ProgressBar progressBar;
     @FXML
     public Label progressLabel;
+    @FXML
+    public ImageView imageView;
 
+    public ChangeListener<Boolean> disConnectBtnListener=null;
+    public ChangeListener<Boolean> connectBtnListener=null;
     private ExecutorService executorService;
-
     private SerialPortCheckService serialPortCheckService;
-
-    private CanContext canContext = CanContext.getInstance();
-    private UartContext uartContext = UartContext.getInstance();
-
+    private CanContext canContext;
+    private UartContext uartContext;
     private String selectedPortName;
     public SimpleBooleanProperty isLoadFile=new SimpleBooleanProperty(false);
-
-
-
+    public SimpleBooleanProperty isConnecting=new SimpleBooleanProperty(false);
     private final SerialPortService serialPortService = new SerialPortService();
+    private OperateStrategy operateStrategy;;
+    // 主窗口引用
+    private Stage primaryStage;
+    // App 引用
+    private Main main;
 
-//    private final CanStrategy canService=new CanStrategy(serialPortService, canContext);
-    private  OperateStrategy operateStrategy;;
 
+/*================================= 方法区 ===========================================================================================*/
+    public Stage getPrimaryStage() {
+        return primaryStage;
+    }
 
+    public void setPrimaryStage(Stage primaryStage) {
+        this.primaryStage = primaryStage;
+    }
+
+    public Main getMain() {
+        return main;
+    }
+
+    public void setMain(Main main) {
+        this.main = main;
+    }
+
+    /**
+     * 控制器初始化
+     * @param url 绑定的fxml url
+     * @param resourceBundle 国际化资源的绑定
+     */
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        canContext.controller=this;
+        imageView.setImage(new Image("/image/logo_s.png"));
         executorService = Executors.newCachedThreadPool(runable->{
             Thread t = new Thread(runable);
             t.setDaemon(true);
             return t;
         });
+
+        // 定时扫描更新串口的变化情况
         serialPortCheckService=new SerialPortCheckService();
         serialPortCheckService.setExecutor(executorService);
         serialPortCheckService.setPeriod(Duration.seconds(1));
         serialPortCheckService.start();
-
-
         serialPortCheckService.valueProperty().addListener(new ChangeListener<List<Map<String, String>>>() {
             @SneakyThrows
             @Override
@@ -127,6 +146,7 @@ public class Controller implements Initializable {
         });
 
 
+        // 记住选中的串口
         portBox.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
             @Override
             public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
@@ -140,6 +160,7 @@ public class Controller implements Initializable {
         selectedPortName=portBox.getValue();
 
 
+        // 升级工具选择控件的类型转换器
         operateTypeBox.setConverter(new StringConverter<OperationType>() {
             @Override
             public String toString(OperationType operationType) {
@@ -161,34 +182,39 @@ public class Controller implements Initializable {
                 if(newValue==null){
                     return;
                 }
+                // 切换之前，清理之前的痕迹
+                serialPortService.closeSeriaPort();
+                isLoadFile.set(false);
+
                 switch (newValue){
                 case RS232:
-// todo 切换逻辑
+                    uartContext=new UartContext();
+                    operateStrategy= new UartStrategy(serialPortService, uartContext, MainStageController.this);
                     break;
                 case CAN:
+                    canContext=new CanContext();
+                    operateStrategy= new CanStrategy(serialPortService, canContext, MainStageController.this);
                     break;
                 }
+
+                operateStrategy.initUI(MainStageController.this);
             }
         });
         operateTypeBox.getSelectionModel().selectFirst();
-//        operateStrategy = new CanStrategy(serialPortService,canContext,this);
-        operateStrategy = new UartStrategy(serialPortService, uartContext, this);
-
-        operateStrategy.initUI(this);
 
     }
 
 
     /**
-     * todo
+     * 连接设备
      *
      * @param event
      */
     public void onConnectDevice(ActionEvent event) {
-        toogleConnectBtn();
-//        connectBtn.setDisable(true);
+        isConnecting.set(true);
+        progressBar.setProgress(0);
+        progressLabel.setText("0%");
         String value = portBox.getValue();
-        System.out.println("value = " + value);
         log.info("value={}", value);
         PortParam portParam = new PortParam();
         portParam.setPortName(value);
@@ -209,16 +235,17 @@ public class Controller implements Initializable {
         task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
             public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
-                if(!newValue){
-                    disConnectBtn.fire();
+                if(newValue){
+                    toogleConnectBtn();
                 }
+                isConnecting.set(false);
             }
         });
         executorService.submit(task);
     }
 
     /**
-     * todo
+     * 断开连接
      */
     public void onDisconnectDevice(ActionEvent event){
         toogleConnectBtn();
@@ -226,7 +253,6 @@ public class Controller implements Initializable {
             @Override
             protected Void call() throws Exception {
                 operateStrategy.disconnect();
-
                 return null;
             }
         };
@@ -234,21 +260,20 @@ public class Controller implements Initializable {
     }
 
     /**
-     * todo
+     * 加载本地文件
      *
      * @param event
      */
     public void onLoadFile(ActionEvent event) throws IOException {
-
         loadBtn.setDisable(true);
-        Node source = (Node) event.getSource();
-        Window window = source.getScene().getWindow();
+        loadBtn2.setDisable(true);
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("选择升级文件");
-        File file = fileChooser.showOpenDialog(window);
+        File file = fileChooser.showOpenDialog(primaryStage);
         if (file == null) {
-            System.out.println("未选择");
+            log.info("未选择");
             loadBtn.setDisable(false);
+            loadBtn2.setDisable(false);
             return ;
         }
 
@@ -263,50 +288,57 @@ public class Controller implements Initializable {
             @Override
             public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oleValue, Boolean newValue) {
                 loadBtn.setDisable(false);
+                loadBtn2.setDisable(false);
                 isLoadFile.set(newValue);
             }
         });
     }
 
 
+    /**
+     * 加载网络文件
+     * @param event
+     */
     public void onLoadFileNetwork(ActionEvent event){
+
+        FileChooseOnNet fileChooseOnNet = new FileChooseOnNet();
+        fileChooseOnNet.setTitle("选择升级文件");
+        String url = fileChooseOnNet.showOpenDialog(primaryStage);
+        if (url == null) {
+            log.info("未选择");
+            loadBtn.setDisable(false);
+            loadBtn2.setDisable(false);
+            return ;
+        }
         Task<Boolean> task=new Task<>(){
             @Override
             protected Boolean call() throws Exception {
-                String url="http://localhost/file/BFF-V2.0-3-0-g8c21336(4850驱动器).bin";
                 return operateStrategy.loadFileOnNet(url);
             }
         };
         executorService.submit(task);
 
-        task.setOnSucceeded(new EventHandler<WorkerStateEvent>() {
-            @Override
-            public void handle(WorkerStateEvent workerStateEvent) {
-                loadBtn.setDisable(false);
-                progressBar.setProgress(0);
-                connectBtn.setDisable(false);
-
-            }
-        });
         task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
             public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oleValue, Boolean newValue) {
                 loadBtn.setDisable(false);
+                loadBtn2.setDisable(false);
                 isLoadFile.set(newValue);
             }
         });
+
+
     }
 
     /**
-     * todo
+     * 升级设备
      *
      * @param event
      */
     public void onStartUpgrade(ActionEvent event) {
         comboxPane.setDisable(true);
         buttonPane.setDisable(true);
-        System.out.println("开始升级");
-        // 弹出模态窗口 todo
+        log.info("开始升级");
         Task<Boolean> task = new Task<>() {
             @Override
             protected Boolean call() throws Exception {
@@ -316,17 +348,27 @@ public class Controller implements Initializable {
                 return flag;
             }
         };
+        // 成功弹出窗口提示
         task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
             public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
-//                disConnectBtn.fire();
-                Alert alert = new Alert(AlertType.INFORMATION, "升级成功");
-                alert.showAndWait().ifPresent(response->{
-
-                });
+                disConnectBtn.fire();
+                if(newValue){
+                    Alert alert = new Alert(AlertType.INFORMATION, "升级成功");
+                    alert.showAndWait().ifPresent(response->{
+                    });
+                }else{
+                    Alert alert = new Alert(AlertType.INFORMATION, "升级失败");
+                    alert.showAndWait().ifPresent(response->{
+                    });
+                }
             }
         });
         executorService.submit(task);
+    }
+
+    private void toogleConnectBtn(){
+        connectBtn.visibleProperty().setValue(!connectBtn.isVisible());
     }
 
     private class SerialPortCheckService extends ScheduledService<List<Map<String, String>>>{
@@ -335,18 +377,20 @@ public class Controller implements Initializable {
             return new Task<List<Map<String, String>>>() {
                 @Override
                 protected List<Map<String, String>> call() throws Exception {
-//                    System.out.println("SerialPortCheckService = " + Thread.currentThread().getName());
-
                     Optional<List<Map<String, String>>> maps = serialPortService.listAllPorts();
                     List<Map<String, String>> maps1 = maps.get();
-
                     return maps1;
                 }
             };
         }
+
     }
 
-    private void toogleConnectBtn(){
-        connectBtn.visibleProperty().setValue(!connectBtn.isVisible());
+    @FXML
+
+    private void onHyberLink(ActionEvent event){
+        final Hyperlink link = (Hyperlink)event.getSource();
+        final String url = link.getText();
+        main.getHostServices().showDocument(url);
     }
 }

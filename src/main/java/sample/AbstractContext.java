@@ -1,5 +1,7 @@
 package sample;
 
+import sample.view.MainStageController;
+
 import java.util.List;
 
 /**
@@ -11,5 +13,5 @@ public class AbstractContext implements AgxContext{
     public List<Byte> data;
     public List<Byte> version;
     // UI 相关
-    public Controller controller;
+    public MainStageController mainStageController;
 }

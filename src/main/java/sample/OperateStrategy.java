@@ -1,6 +1,7 @@
 package sample;
 
 import sample.support.PortParam;
+import sample.view.MainStageController;
 
 import java.io.File;
 
@@ -16,6 +17,6 @@ public interface OperateStrategy {
     boolean loadFile(File file) throws Exception;
     boolean loadFileOnNet(String url);
     boolean upgrade();
-    void initUI(Controller controller);
+    void initUI(MainStageController mainStageController);
 
 }

@@ -1,8 +1,8 @@
 package sample.uart;
 
 import sample.AgxContext;
-import sample.Controller;
-import sample.service.SerialPortService;
+import sample.uart.dto.UartCmd;
+import sample.view.MainStageController;
 import sample.uart.dto.ACK_t;
 import sample.uart.dto.HandShark_t;
 import sample.uart.enumeration.SystemStatus;
@@ -19,27 +19,20 @@ import java.util.concurrent.LinkedBlockingDeque;
  */
 public class UartContext implements AgxContext {
 
-
-
-
-    private  static class InstanceHolder{
-        private static final UartContext instance = new UartContext();
+    public UartContext(){
+        init();
     }
 
-    public static UartContext getInstance(){
-        return InstanceHolder.instance;
+    private void init(){
+
     }
 
     // 控制程序行为的状态数据
     public SystemStatus systemStatus = SystemStatus.ENOMORE;
-    public boolean lostFrame=false;
-    public boolean lastFrame=false;
-    public boolean clearFlash=false;
 
     // 传输数据包过程中的状态量
     public int totalPackageSize;
     public int writteenSize;
-    public int ackCount=0;
 
     // 串口返回的数据
     public BlockingQueue<HandShark_t> handSharkQueue = new LinkedBlockingDeque();
@@ -53,5 +46,5 @@ public class UartContext implements AgxContext {
     public List<Byte> data=new ArrayList<>();;
 
     // UI
-    public Controller controller;
+    public MainStageController mainStageController;
 }

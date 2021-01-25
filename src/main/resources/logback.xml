@@ -38,6 +38,10 @@
     <appender-ref ref="STDOUT" />
     <!--    <appender-ref ref="FILE"/>-->
   </root>
+  <root level="DEBUF">
+<!--    <appender-ref ref="STDOUT" />-->
+        <appender-ref ref="FILE"/>
+  </root>
 <!--  <logger name="com.stmz.mgr.StmzMgrApplication" level="DEBUG">
     <appender-ref ref="FILE"/>
   </logger>-->

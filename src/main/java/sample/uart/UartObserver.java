@@ -1,24 +1,25 @@
 package sample.uart;
 
-import cn.hutool.core.collection.CollectionUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
-import sample.support.SerialObserver;
+import sample.SerialObserver;
 import sample.uart.dto.ACK_t;
 import sample.uart.dto.HandShark_t;
-import sample.uart.dto.UartCmd;
-import sample.uart.enumeration.SystemStatus;
 import sample.util.HexUtils;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
 @Slf4j
 public class UartObserver implements SerialObserver {
     private List<String> receiveData = new LinkedList<>();
-    private UartContext uartContext=UartContext.getInstance();
+    private UartContext uartContext;
+
+    public UartObserver(UartContext uartContext) {
+        this.uartContext = uartContext;
+    }
+
     @Override
     public void handle(final List<Byte> readBuffer) {
         // 这段转换看有没有优化处理
@@ -51,7 +52,6 @@ public class UartObserver implements SerialObserver {
                 continue;
             }
             List<String> temp = receiveData.subList(0, HandShark_t.sizeOf);
-//            System.out.println("\n捕获指令 = " + HexUtils.hexStrings2hexString(temp.toArray(new String[0])));
             log.info("\n捕获指令 = " + HexUtils.hexStrings2hexString(temp.toArray(new String[0])));
             byte[] bytes2 = HexUtils.hexStrings2bytes(temp.toArray(new String[0]));
             HandShark_t handShark_t = HandShark_t.fromBytes(bytes2);
@@ -69,7 +69,6 @@ public class UartObserver implements SerialObserver {
                 continue;
             }
             List<String> temp = receiveData.subList(0, ACK_t.sizeOf);
-//            System.out.println("\n捕获指令 = " + HexUtils.hexStrings2hexString(temp.toArray(new String[0])));
             log.info("\n捕获指令 = " + HexUtils.hexStrings2hexString(temp.toArray(new String[0])));
             byte[] bytes2 = HexUtils.hexStrings2bytes(temp.toArray(new String[0]));
             ACK_t ack_t = ACK_t.fromBytes(bytes2);

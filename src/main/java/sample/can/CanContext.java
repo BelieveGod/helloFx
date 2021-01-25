@@ -1,24 +1,21 @@
 package sample.can;
 
-import javafx.beans.property.SimpleBooleanProperty;
 import sample.AgxContext;
-import sample.Controller;
+import sample.view.MainStageController;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 
 /**
- * 单例CAN 状态，因为原本的C++代码用指针传值，java 没办法，改用统一状态管理
+ *
  */
 public class CanContext implements AgxContext {
 
-    private static class canContextHoler{
-        private static final CanContext INSTANCE = new CanContext();
-    }
 
-    private CanContext(){
+    public CanContext(){
         init();
     }
 
@@ -26,13 +23,10 @@ public class CanContext implements AgxContext {
         Arrays.fill(writeDataBuf,(byte)0);
     }
 
-    public static CanContext getInstance(){
-        return canContextHoler.INSTANCE;
-    }
 
-    // Controller.onLoadFile加载文件获得的数据
-    public List<Byte> data;
-    public List<Byte> version;
+    // MainStageController.onLoadFile加载文件获得的数据
+    public List<Byte> data=new ArrayList<>();
+    public List<Byte> version=new ArrayList<>();
     public byte nodeId;
 
 
@@ -43,7 +37,6 @@ public class CanContext implements AgxContext {
 
     // CanStrategy.sendGetVersionCMD获得的数据
     public byte[] getVersionBuf = new byte[32];
-    public boolean serial_is_open=false;
 
     // CanListener 串口监听获取的数据
     public byte ack_node_id;
@@ -61,5 +54,5 @@ public class CanContext implements AgxContext {
 
 
     // UI 相关
-    public Controller controller;
+    public MainStageController mainStageController;
 }

@@ -1,4 +1,4 @@
-package sample.support;
+package sample;
 
 import java.util.List;
 

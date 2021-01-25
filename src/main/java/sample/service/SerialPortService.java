@@ -1,13 +1,12 @@
 package sample.service;
 
-import cn.hutool.core.util.ArrayUtil;
 import gnu.io.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import sample.exception.OpendPortException;
 import sample.support.AgxResult;
 import sample.support.PortParam;
-import sample.support.SerialObserver;
+import sample.SerialObserver;
 import sample.util.HexUtils;
 
 import java.io.IOException;
@@ -32,7 +31,7 @@ public class SerialPortService {
 
     // 存在多线程增删问题
     private List<SerialObserver> observerList = new ArrayList<>();
-    public SerialListener serialListener=new SerialListener();
+//    public SerialListener serialListener=new SerialListener();
 
     /**
      * 列出所有可用串口
@@ -70,7 +69,7 @@ public class SerialPortService {
 
         try {
             theCommPortIdentifier =CommPortIdentifier.getPortIdentifier(portParam.getPortName());
-            theSerialPort = theCommPortIdentifier.open("轨迹测量", 3000);
+            theSerialPort = theCommPortIdentifier.open("固件升级", 3000);
             theSerialPort.setSerialPortParams(portParam.getBauldRate(),portParam.getDataBits(),portParam.getStopBits(),portParam.getParity());
 
             theSerialPort.addEventListener(new SerialListener());
@@ -101,7 +100,9 @@ public class SerialPortService {
      */
 
     public AgxResult closeSeriaPort(){
-        theSerialPort.close();
+        if(theSerialPort!=null){
+            theSerialPort.close();
+        }
         theSerialPort =null;
         theCommPortIdentifier =null;
         observerList.clear();
@@ -113,14 +114,14 @@ public class SerialPortService {
      */
     public void writeData(byte[] data,int off,int n) throws IOException {
         if(theSerialPort==null){
-            System.out.println("串口没有打开，不能写入始数据");
+            log.warn("串口没有打开，不能写入始数据");
             return ;
         }
         OutputStream outputStream = theSerialPort.getOutputStream();
+        final String string = HexUtils.bytesToHexString(data);
+        log.info("输入指令:{}",string);
         outputStream.write(data,off,n);
-//        outputStream.flush();
-        System.out.print("\n输入指令:");
-        Arrays.stream(HexUtils.bytesToHexStrings(data, off, n)).forEach(System.out::print);
+        outputStream.flush();
         outputStream.close();
     }
 
@@ -129,7 +130,11 @@ public class SerialPortService {
     }
 
     public void removeObserver(SerialObserver observer){
+        observerList.remove(observer);
+    }
 
+    public void clearObservers(SerialObserver observer){
+        observerList.clear();
     }
 
     /**
@@ -186,7 +191,7 @@ public class SerialPortService {
                     Byte[] bytes = ArrayUtils.toObject(tempBuffer);
                     readBuffer.addAll(Arrays.asList(bytes).subList(0, k));
                     // 读到结束符或者没有读入1个字符串就推出循环
-                    System.out.println("\n读取的数据： " + s);
+                    log.info("\n读取的数据： " + s);
                 }
             } catch (IOException e) {
                 e.printStackTrace();

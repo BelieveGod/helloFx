@@ -1,20 +1,16 @@
 package sample.uart;
 
-import cn.hutool.http.HttpUtil;
 import gnu.io.SerialPort;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import org.apache.commons.io.FileUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import sample.AbstractStrategy;
-import sample.Controller;
-import sample.OperateStrategy;
+import sample.view.MainStageController;
 import sample.service.SerialPortService;
-import sample.service.SerialPortService.SerialListener;
 import sample.support.AgxResult;
 import sample.support.PortParam;
-import sample.support.SerialObserver;
 import sample.uart.dto.ACK_t;
 import sample.uart.dto.HandShark_t;
 import sample.uart.dto.Header_t;
@@ -23,12 +19,11 @@ import sample.uart.enumeration.SystemStatus;
 import sample.util.ByteUtils;
 import sample.util.HexUtils;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.TooManyListenersException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,19 +31,21 @@ import java.util.concurrent.TimeUnit;
  * @version 1.0
  * @date 2021/1/20 17:25
  */
+@Slf4j
 public class UartStrategy extends AbstractStrategy {
 
     private static final int FAIL_TIME = 3;
+    private final int TIMEOUT=1000;
     private SerialPortService serialPortService;
-    private UartContext uartContext = UartContext.getInstance();
+    private UartContext uartContext ;
     private UartObserver observer;
-    private final int TIMEOUT=200;
 
-    public UartStrategy(SerialPortService serialPortService, UartContext uartContext,Controller controller) {
+    public UartStrategy(SerialPortService serialPortService, UartContext uartContext,
+                        MainStageController mainStageController) {
         this.serialPortService = serialPortService;
         this.uartContext = uartContext;
-        this.uartContext.controller = controller;
-        observer=new UartObserver();
+        this.uartContext.mainStageController = mainStageController;
+        observer=new UartObserver(uartContext);
     }
 
     @Override
@@ -60,19 +57,14 @@ public class UartStrategy extends AbstractStrategy {
         AgxResult agxResult = serialPortService.openSerialPort(portParam);
         if (agxResult.getCode().equals(200)) {
             theSerialPort = serialPortService.getTheSerialPort();
-            updateMessage("打开串口成功");
-            System.out.println("打开串口成功\n");
+//            updateMessage("打开串口成功");
+            log.info("打开串口成功\n");
         } else {
             updateMessage("打开串口失败");
-            System.out.println("打开串口失败\n");
+            log.error("打开串口失败\n");
             return false;
         }
-//        try {
-//            theSerialPort.addEventListener( serialPortService.new SerialListener());
-//        } catch (TooManyListenersException e) {
-//            e.printStackTrace();
-//        }
-//        theSerialPort.notifyOnDataAvailable(true);
+
         serialPortService.addObserver(observer);
         boolean b =false;
         uartContext.systemStatus = SystemStatus.EHANDSHAKE;
@@ -82,12 +74,19 @@ public class UartStrategy extends AbstractStrategy {
             failTime++;
         }while(!b && failTime<15 );
 
-        if(b){
-            uartContext.systemStatus = SystemStatus.ENOMORE;
-            sendHandShakeChassisToApp();
+        if(!b){
+            updateMessage("握手失败");
+            log.error("握手失败");
+            return b;
         }
+        uartContext.systemStatus = SystemStatus.ENOMORE;
+        sendHandShakeChassisToApp();
         updateMessage("握手成功");
-        System.out.println("握手成功");
+        log.info("握手成功");
+
+        final String s = new String(ByteUtils.deBoxed(uartContext.get_Version));
+        log.debug("系统序列号：{}",s);
+        updateMessage("系统序列号："+s);
         return b;
     }
 
@@ -101,11 +100,8 @@ public class UartStrategy extends AbstractStrategy {
                .append("\n字节数:" + uartContext.data.size())
                .append("\n升级固件版本为:"+ByteUtils.getString(uartContext.version))
                .append("\n\n加载完毕，可以开始升级固件！");
+        log.info(builder.toString());
         this.updateMessage(builder.toString());
-        System.out.println("字节数:" + uartContext.data.size());
-        System.out.println(ByteUtils.getString(uartContext.version));
-        System.out.println();
-        System.out.println("读取完毕");
         return true;
     }
 
@@ -126,7 +122,8 @@ public class UartStrategy extends AbstractStrategy {
            failTime++;
        }while(!sendResultFlag&&failTime<FAIL_TIME);
        if(!sendResultFlag){
-           System.out.println("发送第一帧失败");
+           log.error("发送第一帧失败");
+           updateMessage("升级过程发送失败");
            return false;
        }
         uartContext.writteenSize++;
@@ -150,7 +147,8 @@ public class UartStrategy extends AbstractStrategy {
            updateProgress((double)uartContext.writteenSize/uartContext.totalPackageSize);
        }
         if(!sendResultFlag){
-            System.out.println("发送帧失败");
+            log.error("发送帧失败");
+            updateMessage("升级过程发送失败");
             return false;
         }
 
@@ -165,13 +163,15 @@ public class UartStrategy extends AbstractStrategy {
             failTime++;
         }while(!sendResultFlag&&failTime<FAIL_TIME);
         if(!sendResultFlag){
-            System.out.println("最后帧失败");
+            log.error("最后帧失败");
+            updateMessage("升级过程发送失败");
             return false;
         }
         uartContext.writteenSize++;
         updateProgress((double)uartContext.writteenSize/uartContext.totalPackageSize);
 
-        System.out.println("升级完成");
+        log.info("升级完成");
+        updateMessage("升级完成");
         return sendResultFlag;
 
     }
@@ -231,24 +231,24 @@ public class UartStrategy extends AbstractStrategy {
             serialPortService.writeData(bytes, 0, bytes.length);
             ACK_t poll = uartContext.ackQueue.poll(TIMEOUT, TimeUnit.MILLISECONDS);
             if(poll==null){
-                System.out.println("\n超时");
+                log.warn("\n超时");
                 return false;
             }
             if(poll.typedef==UartCmd.ChassisToACK_Final){
-                System.out.println(String.format("\n接收完成 实际接收到%d帧", poll.count));
+                log.debug(String.format("\n接收完成 实际接收到%d帧", poll.count));
                 uartContext.systemStatus = SystemStatus.ENOMORE;
                 uartContext.get_Version.clear();
                 uartContext.data.clear();
                 uartContext.version.clear();
                 return true;
             }else if(poll.typedef==UartCmd.ChassisToACK_Count){
-                System.out.println(String.format("\n接收到第%d帧", poll.count));
+                log.debug(String.format("\n接收到第%d帧", poll.count));
                 return true;
             }else if(poll.typedef==UartCmd.ChassisToACK_LOST){
-                System.out.println(String.format("\n丢失第%d帧", poll.count));
+                log.error(String.format("\n丢失第%d帧", poll.count));
                 return false;
             }else{
-                System.out.println("\n未知状态");
+                log.warn("\n未知状态");
                 return false;
             }
 
@@ -306,21 +306,20 @@ public class UartStrategy extends AbstractStrategy {
             serialPortService.writeData(bytes, 0, bytes.length);
             ACK_t poll = uartContext.ackQueue.poll(TIMEOUT, TimeUnit.MILLISECONDS);
             if(poll==null){
-                System.out.println("\n超时");
+               log.warn("\n超时");
                 return false;
             }
             if(poll.typedef==UartCmd.ChassisToACK_Clear){
-                System.out.println("\n正在擦除 " + poll.count);
-                System.out.println("\n正在擦除flash");
+                log.debug("\n正在擦除 " + poll.count);
                 return true;
             }else if(poll.typedef==UartCmd.ChassisToACK_Count){
-                System.out.println(String.format("\n接收到第%d帧", poll.count));
+                log.debug(String.format("\n接收到第%d帧", poll.count));
                 return true;
             }else if(poll.typedef==UartCmd.ChassisToACK_LOST){
-                System.out.println(String.format("\n丢失第%d帧", poll.count));
+                log.error(String.format("\n丢失第%d帧", poll.count));
                 return false;
             }else{
-                System.out.println("\n未知状态");
+                log.warn("\n未知状态");
                 return false;
             }
 
@@ -344,23 +343,44 @@ public class UartStrategy extends AbstractStrategy {
     }
 
     @Override
-    public void initUI(Controller controller) {
-        // 按钮组
+    public void initUI(MainStageController mainStageController) {
+        // 清除上一个按钮绑定的影响,目前这样写确实耦合度太高
+        mainStageController.connectBtn.disableProperty().unbind();
+        mainStageController.disConnectBtn.visibleProperty().unbind();
+        mainStageController.upgrateBtn.disableProperty().unbind();
+        mainStageController.portBox.disableProperty().unbind();
+        mainStageController.operateTypeBox.disableProperty().unbind();
+        if (mainStageController.disConnectBtnListener != null) {
+            mainStageController.disConnectBtn.visibleProperty().removeListener(mainStageController.disConnectBtnListener);
+        }
 
-        controller.connectBtn.setDisable(false);
-        controller.loadBtn.setDisable(true);
-        controller.loadBtn2.setDisable(true);
-        controller.disConnectBtn.visibleProperty().bind(controller.connectBtn.visibleProperty().not());
-        controller.upgrateBtn.disableProperty().bind(controller.connectBtn.visibleProperty());
+        ChangeListener<Boolean> changeListener = mainStageController.connectBtnListener;
 
-        controller.connectBtn.visibleProperty().addListener(new ChangeListener<Boolean>() {
-            @Override
-            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
-                controller.loadBtn.setDisable(newValue);
-                controller.loadBtn2.setDisable(newValue);
-            }
-        });
-    }
+        if(changeListener==null) {
+            changeListener = new ChangeListener<>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue,
+                                    Boolean newValue) {
+                    mainStageController.loadBtn.setDisable(newValue);
+                    mainStageController.loadBtn2.setDisable(newValue);
+                }
+            };
+            mainStageController.connectBtnListener=changeListener;
+        }
+        // 按钮组. 属性绑定以connectBtn 为基准
+        // 1. 先设置好监听的
+        mainStageController.connectBtn.visibleProperty().addListener(changeListener);
+        // 2. 再设置属性绑定的
+        mainStageController.disConnectBtn.visibleProperty().bind(mainStageController.connectBtn.visibleProperty().not());
+        mainStageController.upgrateBtn.disableProperty().bind(
+                mainStageController.isLoadFile.not().or(mainStageController.connectBtn.visibleProperty()));
+        mainStageController.portBox.disableProperty().bind(mainStageController.connectBtn.visibleProperty().not());
+        mainStageController.operateTypeBox.disableProperty().bind(mainStageController.connectBtn.visibleProperty().not());
+        mainStageController.connectBtn.disableProperty().bind(mainStageController.isConnecting);
+        // 3. 最后设置赋值的
+        mainStageController.loadBtn.setDisable(true);
+        mainStageController.loadBtn2.setDisable(true);
+        }
 
     /**
      * todo
@@ -386,11 +406,11 @@ public class UartStrategy extends AbstractStrategy {
 
     private boolean sendAppToAckHandShake(){
         try {
-            System.out.println("\nAPPToACK_HandShake:");
+            log.debug("\nAPPToACK_HandShake:");
             sendMsgForChassis(UartCmd.APPToACK_HandShake);
             HandShark_t handShark_t = uartContext.handSharkQueue.poll(TIMEOUT, TimeUnit.MILLISECONDS);
             if(handShark_t==null){
-                System.out.println("\n超时");
+                log.warn("\n超时");
                 return false;
             }
             if (handShark_t.typedef == UartCmd.ChassisToACK_HandShake) {
@@ -398,12 +418,15 @@ public class UartStrategy extends AbstractStrategy {
                 uartContext.get_Version.addAll(Arrays.asList(bytes3));
                 // 为了代码简写一点
                 final List<Byte> get_version = uartContext.get_Version;
-                System.out.println("version" + HexUtils.bytesToHexString(get_version));
+                log.debug("get version=" + HexUtils.bytesToHexString(get_version));
                 for (int i = 0; i < get_version.size(); i++) {
                     if (i > 1) {
                         if (get_version.get(i - 1) == (byte) 0x0d && get_version.get(i) == (byte) 0x0a) {
-                            uartContext.get_Version = uartContext.get_Version.subList(0, i + 1);
-                            System.out.println("get version=" + HexUtils.bytesToHexString(uartContext.get_Version));
+                            final List<Byte> temp = new ArrayList<>();
+                            temp.addAll(uartContext.get_Version.subList(0, i + 1));
+                            uartContext.get_Version.clear();
+                            uartContext.get_Version.addAll(temp);
+                            log.debug("get version=" + HexUtils.bytesToHexString(uartContext.get_Version));
                         }
                     }
                 }
@@ -421,7 +444,7 @@ public class UartStrategy extends AbstractStrategy {
     }
 
     private void sendHandShakeChassisToApp(){
-        System.out.println("\nsendHandShakeChassisToApp:");
+        log.debug("\nsendHandShakeChassisToApp:");
         sendMsgForChassis(UartCmd.HandShake_ChassisToApp);
     }
 
@@ -430,15 +453,15 @@ public class UartStrategy extends AbstractStrategy {
 
     protected void updateMessage(String message){
         Platform.runLater(()->{
-            uartContext.controller.textArea.appendText("\n" + message);
+            uartContext.mainStageController.textArea.appendText("\n" + message);
         });
     }
 
     private void updateProgress(Double rate){
         Platform.runLater(()->{
-            uartContext.controller.progressBar.setProgress(rate);
+            uartContext.mainStageController.progressBar.setProgress(rate);
             int d=(int)(rate*100);
-            uartContext.controller.progressLabel.setText(String.format("%d%%", d));
+            uartContext.mainStageController.progressLabel.setText(String.format("%d%%", d));
         });
     }
 

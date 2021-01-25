@@ -6,20 +6,13 @@ import gnu.io.NoSuchPortException;
 import gnu.io.PortInUseException;
 import gnu.io.SerialPort;
 import gnu.io.UnsupportedCommOperationException;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import sample.can.CanListener;
-import sample.support.AgxResult;
 import sample.support.PortParam;
 import sample.util.HexUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.Scanner;
 import java.util.TooManyListenersException;
-
-import static org.junit.Assert.*;
 
 /**
  * 找到一个困扰很久的bug， 这固件不能连续接收指令，需要程序停顿一定间隔。
@@ -44,8 +37,6 @@ public class SerialPortServiceTest {
         SerialPort theSerialPort = theCommPortIdentifier.open("轨迹测量", 3000);
         theSerialPort.setSerialPortParams(portParam.getBauldRate(),portParam.getDataBits(),portParam.getStopBits(),portParam.getParity());
 
-        theSerialPort.addEventListener(new CanListener(theSerialPort));
-        theSerialPort.notifyOnDataAvailable(true);
 
 
 //        try {

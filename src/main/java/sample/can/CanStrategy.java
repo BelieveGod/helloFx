@@ -1,13 +1,12 @@
 package sample.can;
 
-import cn.hutool.http.HttpUtil;
 import gnu.io.SerialPort;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
-import org.apache.commons.io.FileUtils;
-import sample.Controller;
-import sample.OperateStrategy;
+import lombok.extern.slf4j.Slf4j;
+import sample.AbstractStrategy;
+import sample.view.MainStageController;
 import sample.can.dto.CmdFrame;
 import sample.can.dto.CmdList;
 import sample.can.dto.DataFrame;
@@ -17,12 +16,10 @@ import sample.support.PortParam;
 import sample.util.ByteUtils;
 import sample.util.CrcUtil;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.TooManyListenersException;
 import java.util.concurrent.TimeUnit;
 
 import static sample.can.dto.CmdList.*;
@@ -32,49 +29,31 @@ import static sample.can.dto.CmdList.*;
  * @version 1.0
  * @date 2021/1/15 11:13
  */
-public class CanStrategy implements OperateStrategy {
+@Slf4j
+public class CanStrategy extends AbstractStrategy  {
 
     public static final int TIMEOUT = 3000;
     private SerialPortService serialPortService;
     private CanContext canContext;
+    private CanObserver observer;
 
-    public CanStrategy(SerialPortService serialPortService, CanContext canContext,Controller controller) {
+    public CanStrategy(SerialPortService serialPortService, CanContext canContext,
+                       MainStageController mainStageController) {
         this.serialPortService = serialPortService;
         this.canContext = canContext;
-        this.canContext.controller=controller;
-    }
-    @Override
-    public boolean disconnect() {
-
-        AgxResult agxResult = serialPortService.closeSeriaPort();
-        if (agxResult.getCode() == 200) {
-            updateMessage("已关闭串口");
-            return true;
-        }else{
-            updateMessage("关闭串口失败");
-            return false;
-        }
-
+        this.canContext.mainStageController = mainStageController;
+        observer = new CanObserver(canContext);
     }
 
-    @Override
-    public boolean loadFile(File file) throws IOException {
-        byte[] bytes1 = FileUtils.readFileToByteArray(file.getAbsoluteFile());
-        return paserFile(bytes1,file.getAbsolutePath());
-    }
 
-    @Override
-    public boolean loadFileOnNet(String url) {
-        byte[] bytes1= HttpUtil.downloadBytes(url);
-        return paserFile(bytes1,url);
-    }
 
-    private boolean paserFile(byte[] file,String url){
+    protected boolean paserFile(byte[] file,String url){
         ArrayList<Byte> fileBytes = new ArrayList<>();
         fileBytes.addAll(Arrays.asList(ByteUtils.boxed(file)));
-        canContext.version = getVersion(fileBytes);
-
-        canContext.data = fileBytes.subList(canContext.version.size(), fileBytes.size());
+        canContext.version.clear();
+        canContext.data.clear();
+        canContext.version.addAll(getVersion(fileBytes));
+        canContext.data.addAll(fileBytes.subList(canContext.version.size(), fileBytes.size()));
 
         try {
             canContext.nodeId = (byte) getNodeId(canContext.version).intValue();
@@ -82,48 +61,53 @@ public class CanStrategy implements OperateStrategy {
             this.updateMessage("\n加载的不是升级文件，请重新加载");
             return false;
         }
-
         StringBuilder builder = new StringBuilder();
         builder.append("\n加载的文件："+url)
                .append("\n字节数:" + canContext.data.size())
                .append("\n升级固件版本为:"+ByteUtils.getString(canContext.version))
                .append("\n升级的设备节点号:"+(canContext.nodeId &0xff))
                .append("\n\n加载完毕，可以开始升级固件！");
+        log.info(builder.toString());
         this.updateMessage(builder.toString());
-        System.out.println("字节数:" + canContext.data.size());
-        System.out.println(ByteUtils.getString(canContext.version));
-        System.out.println();
-        System.out.println("读取完毕");
         return true;
     }
 
     @Override
-    public void initUI(Controller controller) {
-        controller.connectBtn.disableProperty().unbind();
-        controller.disConnectBtn.disableProperty().unbind();
-        controller.loadBtn.disableProperty().unbind();
-        controller.loadBtn2.disableProperty().unbind();
-        controller.upgrateBtn.disableProperty().unbind();
-        controller.connectBtn.visibleProperty().unbind();
-        controller.disConnectBtn.visibleProperty().unbind();
-        controller.loadBtn.visibleProperty().unbind();
-        controller.loadBtn2.visibleProperty().unbind();
-        controller.upgrateBtn.visibleProperty().unbind();
+    public void initUI(MainStageController mainStageController) {
+        // 清除上一个按钮绑定的影响,目前这样写确实耦合度太高
+        mainStageController.disConnectBtn.visibleProperty().unbind();
+        mainStageController.upgrateBtn.disableProperty().unbind();
+        mainStageController.portBox.disableProperty().unbind();
+        mainStageController.operateTypeBox.disableProperty().unbind();
+        mainStageController.connectBtn.disableProperty().unbind();
+        if (mainStageController.connectBtnListener != null) {
+            mainStageController.connectBtn.visibleProperty().removeListener(mainStageController.connectBtnListener);
+        }
 
-
-        // 按钮组
-        controller.connectBtn.disableProperty().bind(controller.isLoadFile.not());
-        controller.disConnectBtn.visibleProperty().bind(controller.connectBtn.visibleProperty().not());
-        controller.upgrateBtn.disableProperty().bind(controller.connectBtn.visibleProperty());
-        controller.disConnectBtn.visibleProperty().addListener(new ChangeListener<Boolean>() {
-            @Override
-            public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
-                controller.loadBtn.setDisable(newValue);
-                controller.loadBtn2.setDisable(newValue);
-            }
-        });
-        controller.loadBtn.setDisable(false);
-        controller.loadBtn2.setDisable(false);
+        ChangeListener<Boolean> changeListener= mainStageController.disConnectBtnListener;
+        if(changeListener==null) {
+            changeListener = new ChangeListener<>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue,
+                                    Boolean newValue) {
+                    mainStageController.loadBtn.setDisable(newValue);
+                    mainStageController.loadBtn2.setDisable(newValue);
+                }
+            };
+            mainStageController.disConnectBtnListener=changeListener;
+        }
+        // 按钮组。 属性绑定以connectBtn 为基准
+        // 1. 先设置监听的
+        mainStageController.disConnectBtn.visibleProperty().addListener(changeListener);
+        // 2. 再设置绑定的
+        mainStageController.connectBtn.disableProperty().bind(mainStageController.isLoadFile.not().or(mainStageController.isConnecting));
+        mainStageController.disConnectBtn.visibleProperty().bind(mainStageController.connectBtn.visibleProperty().not());
+        mainStageController.upgrateBtn.disableProperty().bind(mainStageController.connectBtn.visibleProperty());
+        mainStageController.portBox.disableProperty().bind(mainStageController.connectBtn.visibleProperty().not());
+        mainStageController.operateTypeBox.disableProperty().bind(mainStageController.connectBtn.visibleProperty().not());
+        // 3.最后设置赋值的
+        mainStageController.loadBtn.setDisable(false);
+        mainStageController.loadBtn2.setDisable(false);
     }
 
 
@@ -145,12 +129,12 @@ public class CanStrategy implements OperateStrategy {
         canContext.cmd_status=0;
         try {
             Thread.sleep(10);
-            System.out.println("\nSendExcuteCMD:");
+            log.debug("\nSendExcuteCMD:");
             serialPortService.writeData(bytes,0,bytes.length);
             if(CAN_BL_MODE == CAN_BL_APP){
                 Boolean poll = canContext.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
                 if(poll==null){
-                    System.out.println("\n超时");
+                    log.warn("\n超时");
                     return false;
                 }
             }
@@ -180,14 +164,14 @@ public class CanStrategy implements OperateStrategy {
         canContext.cmd_status=0;
         try {
             Thread.sleep(30);
-            System.out.println("\nsendCheckCMD");
+            log.debug("\nsendCheckCMD");
             serialPortService.writeData(bytes,0,bytes.length);
 
             // 源码sleep(100)
 //            Boolean poll = canContext.result.take();
             Boolean poll = canContext.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
             if(poll==null){
-                System.out.println("\n超时");
+                log.warn("\n超时");
                 return false;
             }
             if(poll){
@@ -202,7 +186,7 @@ public class CanStrategy implements OperateStrategy {
         } catch (IOException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
-            System.out.println("\n超时");
+            log.error("\n异常中断");
             return false;
         }
         return false;
@@ -225,7 +209,7 @@ public class CanStrategy implements OperateStrategy {
         canContext.cmd_status=0;
         try {
             Thread.sleep(10);
-            System.out.println("\nsendVersionCMD");
+            log.debug("\nsendVersionCMD");
             serialPortService.writeData(bytes,0,bytes.length);
 
 //            Boolean poll = canContext.result.take();
@@ -244,7 +228,7 @@ public class CanStrategy implements OperateStrategy {
         } catch (IOException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
-            System.out.println("\n超时");
+            log.warn("\n超时");
             return false;
         }
 
@@ -266,7 +250,7 @@ public class CanStrategy implements OperateStrategy {
         canContext.cmd_status=0;
         try {
             Thread.sleep(10);
-            System.out.println("\nsendGetVersionCMD");
+            log.debug("\nsendGetVersionCMD");
             serialPortService.writeData(bytes,0,bytes.length);
 
             Boolean poll = canContext.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
@@ -285,7 +269,7 @@ public class CanStrategy implements OperateStrategy {
         } catch (IOException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
-            System.out.println("\n超时");
+            log.warn("\n超时");
             return false;
         }
         // todo
@@ -302,27 +286,19 @@ public class CanStrategy implements OperateStrategy {
         }
         AgxResult agxResult = serialPortService.openSerialPort(portParam);
         if (agxResult.getCode().equals(200)) {
-            updateMessage("打开串口成功");
-            System.out.println("打开串口成功\n");
+//            updateMessage("打开串口成功");
+            log.debug("打开串口成功\n");
         } else {
             updateMessage("打开串口失败");
-            System.out.println("打开串口失败\n");
+            log.error("打开串口失败\n");
             return false;
         }
-        try {
-            theSerialPort = serialPortService.getTheSerialPort();
-            serialPortService.addEventListener(new CanListener(theSerialPort));
-            theSerialPort.notifyOnDataAvailable(true);
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (TooManyListenersException e) {
-            e.printStackTrace();
-        }
+        serialPortService.addObserver(observer);
 
         if(canContext.nodeId==0){
             // 失败
             updateMessage("节点号错误");
-            System.out.println("节点号错误");
+            log.error("节点号错误");
             return false;
         }
 
@@ -335,34 +311,34 @@ public class CanStrategy implements OperateStrategy {
 
         if(!sendExcuteFlag){
             updateMessage("握手失败");
-            System.out.println("握手失败");
+            log.error("握手失败");
             return false;
         }
-        System.out.println("sendExcuteFlag成功");
+        log.debug("\nsendExcuteFlag成功");
 
         boolean sendVersionFlag = sendVersionCMD();
         if(!sendVersionFlag){
             updateMessage("固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
-            System.out.println("\nsendVersionCMD 固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
+            log.error("\nsendVersionCMD 固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
             return false;
         }
-        System.out.println("sendVersionCMD成功");
+        log.debug("sendVersionCMD成功");
 
         if(canContext.fwType != CAN_BL_BOOT || canContext.ack_node_id != canContext.nodeId){
             updateMessage("固件类型错误或者返回的节点ID错误，握手失败！");
-            System.out.println("固件类型错误或者返回的节点ID错误，握手失败！");
+            log.error("固件类型错误或者返回的节点ID错误，握手失败！");
             return false;
         }
 
         boolean sendGetVersionFlag = sendGetVersionCMD();
         if(!sendGetVersionFlag){
             updateMessage("获取固件版本失败");
-            System.out.println("sendGetVersionFlag 失败");
+            log.error("sendGetVersionFlag 失败");
             return false;
         }
 
         updateMessage("连接成功");
-        System.out.println("连接成功");
+        log.info("连接成功");
         showConnectMessage();
         return true;
 
@@ -396,21 +372,20 @@ public class CanStrategy implements OperateStrategy {
         canContext.cmd_status=0;
         try {
             Thread.sleep(10);
-            System.out.println("\nsendEraseFlashCmd");
+            log.debug("\nsendEraseFlashCmd");
             serialPortService.writeData(bytes,0,bytes.length);
             Boolean poll = canContext.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
 //            Boolean poll = canContext.result.take();
             if(poll==null){
-                System.out.println("\n超时");
+                log.warn("\n超时");
                 return false;
             }
             return poll;
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("sendEraseFlashCmd异常",e);
         } catch (InterruptedException e) {
             return false;
         }
-        // todo
         return false;
     }
 
@@ -418,30 +393,28 @@ public class CanStrategy implements OperateStrategy {
     public boolean upgrade(){
         canContext.totalSize=canContext.data.size();
 
-        System.out.println("开始擦除");
+        log.debug("开始擦除");
         updateMessage("开始擦除");
 
         boolean sendEraseFlashCmdFlag = sendEraseFlashCmd();
         if(!sendEraseFlashCmdFlag){
-            System.out.println("擦除失败");
+            log.error("擦除失败");
             updateMessage("擦除失败");
             return false;
         }
+        log.info("擦除成功");
         updateMessage("擦除成功");
-        System.out.println("擦除成功");
-        System.out.println("传输开始");
-        updateMessage("传输开始");
+        log.info("传输开始");
         updateMessage("传输开始");
         boolean transformFlag = transform();
         if(transformFlag){
+            log.info("升级成功");
             updateMessage("升级成功");
-            System.out.println("升级成功");
         }else{
+            log.info("升级失败");
             updateMessage("升级失败");
-            System.out.println("升级失败");
         }
         return transformFlag;
-
     }
 
     private boolean transform(){
@@ -453,13 +426,9 @@ public class CanStrategy implements OperateStrategy {
         updateProgress(rate);
         while(canContext.bytesWritten<=canContext.totalSize){
             fetchData(canContext);
-
             if(canContext.read_data_number>0){
                 canContext.writeDataBuf = CrcUtil.setParamCrcAdapter(canContext.writeDataBuf,canContext.read_data_number);
-                System.out.println("read_data_number:"+canContext.read_data_number);
-//                String s =
-//                        HexUtils.hexStrings2hexString(HexUtils.bytesToHexStrings(canContext.writeDataBuf, 0, 1024));
-//                System.out.println("s = " + s);
+                log.debug("read_data_number:"+canContext.read_data_number);
                 // 发送数据
                 int package_write_times = 0;
                 boolean sendDataPackageFlag = false;
@@ -473,17 +442,17 @@ public class CanStrategy implements OperateStrategy {
                     } while (!sendWriteInfoCmdFlag && cmd_send_times < 3);
 
                     if (!sendWriteInfoCmdFlag) {
-                        System.out.println("发送控制命令失败");
+                        log.error("发送控制命令失败");
                         return false;
                     }
                     sendDataPackageFlag = sendDataPackage();
                     package_write_times++;
                 } while (!sendDataPackageFlag && package_write_times < 3);
                 if(!sendDataPackageFlag){
-                    System.out.println("发送数据包失败");
+                    log.error("发送数据包失败");
                     return false;
                 }
-                System.out.println("发送数据包成功");
+                log.info("发送数据包成功");
                 canContext.bytesWritten+=canContext.read_data_number;
                 canContext.bytesToWrite -= canContext.read_data_number;
                 rate=(double)canContext.bytesWritten/canContext.totalSize;
@@ -528,12 +497,11 @@ public class CanStrategy implements OperateStrategy {
         canContext.cmd_status=0;
         try {
             Thread.sleep(10);
-            System.out.println("\nsendDataPackage");
+            log.debug("\nsendDataPackage");
             serialPortService.writeData(bytes,0,bytes.length);
             Boolean poll = canContext.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
-//            Boolean poll = canContext.result.take();
             if(poll==null){
-                System.out.println("\n超时");
+                log.warn("\n超时");
                 return false;
             }
             return poll;
@@ -544,8 +512,6 @@ public class CanStrategy implements OperateStrategy {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-
-        // todo
         return false;
     }
 
@@ -573,62 +539,44 @@ public class CanStrategy implements OperateStrategy {
         canContext.cmd_status=0;
         try {
             Thread.sleep(20);
-            System.out.println("\nsendWriteInfoCmd");
+            log.debug("\nsendWriteInfoCmd");
             serialPortService.writeData(bytes,0,bytes.length);
 
             Boolean poll = canContext.result.poll(TIMEOUT, TimeUnit.MILLISECONDS);
-//            Boolean poll = canContext.result.take();
             if(poll==null){
-                System.out.println("\n超时");
+                log.warn("\n超时");
                 return false;
             }
             return poll;
-
         } catch (IOException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
-            System.out.println("\n超时");
+            log.error("中断异常", e);
             return false;
         }
         return false;
     }
 
-    private void updateMessage(String message){
+    protected void updateMessage(String message){
         Platform.runLater(()->{
-            canContext.controller.textArea.appendText("\n" + message);
+            canContext.mainStageController.textArea.appendText("\n" + message);
         });
     }
 
     private void updateProgress(Double rate){
         Platform.runLater(()->{
-            canContext.controller.progressBar.setProgress(rate);
+            canContext.mainStageController.progressBar.setProgress(rate);
             int d=(int)(rate*100);
-            canContext.controller.progressLabel.setText(String.format("%d%%", d));
+            canContext.mainStageController.progressLabel.setText(String.format("%d%%", d));
         });
-    }
-
-    private List<Byte> getVersion(List<Byte> fileByte) {
-        for (int i = 0; i < fileByte.size(); i++) {
-
-            if (i > 1) {
-                if (fileByte.get(i - 1) == (0x0d) && fileByte.get(i) == (0x0a)) {
-                    return fileByte.subList(0, i + 1);
-                }
-            }
-        }
-        return new ArrayList<>();
     }
 
     private Integer getNodeId(List<Byte> version) throws NumberFormatException{
         String s = ByteUtils.getString(version);
         String substring = s.substring(1, 3);
-
         Integer integer = null;
         integer = Integer.valueOf(substring, 16);
-
         return integer;
-
-
     }
 
 }
