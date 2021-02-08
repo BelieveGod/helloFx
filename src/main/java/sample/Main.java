@@ -2,6 +2,7 @@ package sample;
 
 import com.jfoenix.controls.JFXAlert;
 import com.jfoenix.controls.JFXButton;
+import com.jfoenix.controls.JFXDecorator;
 import com.jfoenix.controls.JFXDialog;
 import javafx.application.Application;
 import javafx.event.ActionEvent;
@@ -17,6 +18,7 @@ import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import sample.component.LeftPane;
+import sample.component.MainWin;
 import sample.view.MainStageController;
 
 import java.net.URL;
@@ -39,7 +41,8 @@ public class Main extends Application {
         this.primaryStage=primaryStage;
 //        initRootLayout();
 //        initTestLayout();
-        initLeftPane();
+//        initLeftPane();
+        initMain();
     }
 
 
@@ -111,6 +114,14 @@ public class Main extends Application {
         primaryStage.setScene(scene);
         primaryStage.show();
 
+    }
+
+    private void initMain(){
+        MainWin mainWin=new MainWin();
+//        JFXDecorator decorator = new JFXDecorator(primaryStage, mainWin);
+        Scene scene = new Scene(mainWin);
+        primaryStage.setScene(scene);
+        primaryStage.show();
     }
 
 }

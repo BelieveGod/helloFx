@@ -2,6 +2,8 @@ package sample.component;
 
 import com.jfoenix.controls.JFXButton;
 import com.jfoenix.controls.JFXComboBox;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.concurrent.ScheduledService;
 import javafx.concurrent.Task;
 import javafx.geometry.Pos;
@@ -14,10 +16,13 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
+import lombok.SneakyThrows;
 import sample.service.SerialPortService;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 
 /**
@@ -31,7 +36,7 @@ public class LeftPane extends VBox {
     private ToggleGroup upgradeWayGroup;
     private RadioButton usb2Can;
     private RadioButton usb2RS232;
-    private JFXComboBox portCombo;
+    private JFXComboBox<String> portCombo;
     private HBox canNodeHbox;
     private JFXComboBox canNodeCombo;
     private JFXComboBox chassisCombo;
@@ -42,8 +47,12 @@ public class LeftPane extends VBox {
     private JFXButton disConnectBtn;
     private JFXButton checkUpgrateBtn;
 
-    public LeftPane() {
+    private Controller controller;
+    private final MainWin mainWin;
+
+    public LeftPane(MainWin mainWin) {
         super();
+        this.mainWin=mainWin;
         init();
         this.setSpacing(5);
     }
@@ -61,6 +70,10 @@ public class LeftPane extends VBox {
         pane.getChildren().add(stackPane1);
         this.getChildren().addAll(hbox1, portCombo.getParent(), canNodeCombo.getParent(), chassisCombo.getParent(),vbox1,pane);
         this.setFillWidth(false);
+        this.setPrefSize(200,457);
+
+        controller=new Controller();
+        controller.init();
 
     }
 
@@ -110,7 +123,7 @@ public class LeftPane extends VBox {
         Label label = createLabel("串口");
         portCombo = createComboBox();
         // todo 要改成动态数据
-        portCombo.getItems().addAll("com1","com2");
+//        portCombo.getItems().addAll("com1","com2");
         hbox.getChildren().addAll(label, portCombo);
 
     }
@@ -168,10 +181,47 @@ public class LeftPane extends VBox {
     private class Controller{
         private SerialPortService serialPortService;
         private SerialPortCheckService serialPortCheckService;
+        private String selectedPortName;
         public void init(){
+          initPort();
+
+        }
+
+        private void initPort(){
             serialPortCheckService = new SerialPortCheckService();
             serialPortCheckService.setPeriod(Duration.seconds(1));
             serialPortCheckService.start();
+            serialPortCheckService.valueProperty().addListener(new ChangeListener<List<Map<String, String>>>() {
+                @SneakyThrows
+                @Override
+                public void changed(ObservableValue<? extends List<Map<String, String>>> observableValue, List<Map<String, String>> oldValue, List<Map<String, String>> newValue) {
+                    List<Map<String, String>> portList = oldValue != null ? oldValue : newValue;
+                    portCombo.getItems().clear();
+                    for (Map<String, String> stringMap : portList) {
+                        Iterator<Entry<String, String>> iterator = stringMap.entrySet().iterator();
+                        while (iterator.hasNext()) {
+                            Entry<String, String> next = iterator.next();
+                            String value = next.getValue();
+                            portCombo.getItems().add(value);
+                            if(value.equals(selectedPortName)){
+                                portCombo.getSelectionModel().selectLast();
+                            }
+                        }
+                    }
+                }
+            });
+            // 记住选中的串口
+            portCombo.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
+                    if(newValue!=null){
+                        selectedPortName=newValue;
+                    }
+                }
+            });
+
+            portCombo.getSelectionModel().selectFirst();
+            selectedPortName=portCombo.getValue();
         }
 
         private class SerialPortCheckService extends ScheduledService<List<Map<String, String>>> {
