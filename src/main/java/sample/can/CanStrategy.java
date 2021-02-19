@@ -6,6 +6,8 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import lombok.extern.slf4j.Slf4j;
 import sample.AbstractStrategy;
+import sample.common.Colleague;
+import sample.common.Constant;
 import sample.view.MainStageController;
 import sample.can.dto.CmdFrame;
 import sample.can.dto.CmdList;
@@ -36,12 +38,12 @@ public class CanStrategy extends AbstractStrategy  {
     private SerialPortService serialPortService;
     private CanContext canContext;
     private CanObserver observer;
+    private Colleague colleague;
 
-    public CanStrategy(SerialPortService serialPortService, CanContext canContext,
-                       MainStageController mainStageController) {
+    public CanStrategy(SerialPortService serialPortService, CanContext canContext,Colleague colleague) {
         this.serialPortService = serialPortService;
         this.canContext = canContext;
-        this.canContext.mainStageController = mainStageController;
+        this.colleague=colleague;
         observer = new CanObserver(canContext);
     }
 
@@ -316,13 +318,13 @@ public class CanStrategy extends AbstractStrategy  {
         }
         log.debug("\nsendExcuteFlag成功");
 
-        boolean sendVersionFlag = sendVersionCMD();
-        if(!sendVersionFlag){
-            updateMessage("固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
-            log.error("\nsendVersionCMD 固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
-            return false;
-        }
-        log.debug("sendVersionCMD成功");
+//        boolean sendVersionFlag = sendVersionCMD();
+//        if(!sendVersionFlag){
+//            updateMessage("固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
+//            log.error("\nsendVersionCMD 固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
+//            return false;
+//        }
+//        log.debug("sendVersionCMD成功");
 
         if(canContext.fwType != CAN_BL_BOOT || canContext.ack_node_id != canContext.nodeId){
             updateMessage("固件类型错误或者返回的节点ID错误，握手失败！");
@@ -558,17 +560,13 @@ public class CanStrategy extends AbstractStrategy  {
     }
 
     protected void updateMessage(String message){
-        Platform.runLater(()->{
-            canContext.mainStageController.textArea.appendText("\n" + message);
-        });
+
+        colleague.send(Constant.LOG, "\n" + message);
     }
 
     private void updateProgress(Double rate){
-        Platform.runLater(()->{
-            canContext.mainStageController.progressBar.setProgress(rate);
-            int d=(int)(rate*100);
-            canContext.mainStageController.progressLabel.setText(String.format("%d%%", d));
-        });
+
+        colleague.send(Constant.PROGRESS, rate);
     }
 
     private Integer getNodeId(List<Byte> version) throws NumberFormatException{
