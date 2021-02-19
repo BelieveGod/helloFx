@@ -189,11 +189,11 @@ public class MainStageController implements Initializable {
                 switch (newValue){
                 case RS232:
                     uartContext=new UartContext();
-                    operateStrategy= new UartStrategy(serialPortService, uartContext, MainStageController.this);
+//                    operateStrategy= new UartStrategy(serialPortService, uartContext, MainStageController.this);
                     break;
                 case CAN:
                     canContext=new CanContext();
-                    operateStrategy= new CanStrategy(serialPortService, canContext, MainStageController.this);
+//                    operateStrategy= new CanStrategy(serialPortService, canContext, MainStageController.this);
                     break;
                 }
 

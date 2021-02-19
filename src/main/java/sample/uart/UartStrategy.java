@@ -7,6 +7,8 @@ import javafx.beans.value.ObservableValue;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import sample.AbstractStrategy;
+import sample.common.Colleague;
+import sample.common.Constant;
 import sample.view.MainStageController;
 import sample.service.SerialPortService;
 import sample.support.AgxResult;
@@ -39,12 +41,13 @@ public class UartStrategy extends AbstractStrategy {
     private SerialPortService serialPortService;
     private UartContext uartContext ;
     private UartObserver observer;
+    private Colleague colleague;
 
-    public UartStrategy(SerialPortService serialPortService, UartContext uartContext,
-                        MainStageController mainStageController) {
+    public UartStrategy(SerialPortService serialPortService, UartContext uartContext, Colleague colleague
+                        ) {
         this.serialPortService = serialPortService;
         this.uartContext = uartContext;
-        this.uartContext.mainStageController = mainStageController;
+        this.colleague=colleague;
         observer=new UartObserver(uartContext);
     }
 
@@ -452,17 +455,12 @@ public class UartStrategy extends AbstractStrategy {
 
 
     protected void updateMessage(String message){
-        Platform.runLater(()->{
-            uartContext.mainStageController.textArea.appendText("\n" + message);
-        });
+        colleague.send(Constant.LOG, "\n" + message);
     }
 
     private void updateProgress(Double rate){
-        Platform.runLater(()->{
-            uartContext.mainStageController.progressBar.setProgress(rate);
-            int d=(int)(rate*100);
-            uartContext.mainStageController.progressLabel.setText(String.format("%d%%", d));
-        });
+
+        colleague.send(Constant.PROGRESS, rate);
     }
 
 

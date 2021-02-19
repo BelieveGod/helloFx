@@ -53,6 +53,4 @@ public class CanContext implements AgxContext {
     public byte[] writeDataBuf = new byte[1026];
 
 
-    // UI 相关
-    public MainStageController mainStageController;
 }

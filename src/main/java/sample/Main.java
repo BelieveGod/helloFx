@@ -41,7 +41,6 @@ public class Main extends Application {
         this.primaryStage=primaryStage;
 //        initRootLayout();
 //        initTestLayout();
-//        initLeftPane();
         initMain();
     }
 
@@ -102,19 +101,7 @@ public class Main extends Application {
         alert.show();
     }
 
-    private void initLeftPane(){
-        LeftPane leftPane = new LeftPane();
-        StackPane stackPane = new StackPane();
-        stackPane.setPrefWidth(200);
-        stackPane.setStyle("-fx-background-color: yellow");
-        Scene scene = new Scene(leftPane);
-        primaryStage.setWidth(500);
-        primaryStage.setHeight(500);
 
-        primaryStage.setScene(scene);
-        primaryStage.show();
-
-    }
 
     private void initMain(){
         MainWin mainWin=new MainWin();
