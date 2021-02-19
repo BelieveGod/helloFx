@@ -6,19 +6,35 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.concurrent.ScheduledService;
 import javafx.concurrent.Task;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
+import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.util.Callback;
 import javafx.util.Duration;
 import lombok.SneakyThrows;
+import sample.OperateStrategy;
+import sample.can.CanContext;
+import sample.can.CanStrategy;
+import sample.common.Colleague;
+import sample.common.Constant;
+import sample.common.Mediator;
+import sample.enumeration.CanNode;
 import sample.service.SerialPortService;
+import sample.support.PortParam;
+import sample.uart.UartContext;
+import sample.uart.UartStrategy;
+import sample.view.MainStageController;
 
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +46,7 @@ import java.util.Optional;
  * @version 1.0
  * @date 2021/2/7 15:01
  */
-public class LeftPane extends VBox {
+public class LeftPane extends VBox implements Colleague {
 
     private HBox hbox1;
     private ToggleGroup upgradeWayGroup;
@@ -38,7 +54,7 @@ public class LeftPane extends VBox {
     private RadioButton usb2RS232;
     private JFXComboBox<String> portCombo;
     private HBox canNodeHbox;
-    private JFXComboBox canNodeCombo;
+    private JFXComboBox<String> canNodeCombo;
     private JFXComboBox chassisCombo;
     // 按钮组
     private VBox vbox1;
@@ -49,10 +65,14 @@ public class LeftPane extends VBox {
 
     private Controller controller;
     private final MainWin mainWin;
+    private Map<String, Callback<Object[],Void>> funMap = new HashMap<>();
+    private Mediator mediator;
 
     public LeftPane(MainWin mainWin) {
         super();
         this.mainWin=mainWin;
+        // 注册
+        ((Mediator)mainWin).register(this);
         init();
         this.setSpacing(5);
     }
@@ -63,12 +83,7 @@ public class LeftPane extends VBox {
         initCanNode();
         initChassis();
         initButtons();
-        StackPane stackPane1 = new StackPane(new Label("statckpanel"));
-        stackPane1.setStyle("-fx-background-color: red;-fx-pref-width: 300px;");
-        Pane pane = new Pane();
-        pane.setStyle("-fx-background-color: green;-fx-pref-width: 300px;");
-        pane.getChildren().add(stackPane1);
-        this.getChildren().addAll(hbox1, portCombo.getParent(), canNodeCombo.getParent(), chassisCombo.getParent(),vbox1,pane);
+        this.getChildren().addAll(hbox1, portCombo.getParent(), canNodeCombo.getParent(), chassisCombo.getParent(),vbox1);
         this.setFillWidth(false);
         this.setPrefSize(200,457);
 
@@ -83,7 +98,6 @@ public class LeftPane extends VBox {
 
         stackPane = new StackPane();
         stackPane.setPrefWidth(180);
-        stackPane.setStyle("-fx-background-color: blue;-fx-pref-width: 180px");
         stackPane.widthProperty().addListener((observableValue, oldValue, newValue) -> {
             System.out.println("stackPane oldValue = " + oldValue);
             System.out.println("stackPane newValue = " + newValue);
@@ -114,7 +128,7 @@ public class LeftPane extends VBox {
         Label label = createLabel("升级节点");
         canNodeCombo = createComboBox();
         // todo 要改成动态数据
-        canNodeCombo.getItems().addAll("主控","驱动1");
+        canNodeCombo.getItems().addAll(CanNode.MASTER.getNodeName(), CanNode.MOTOR.getNodeName());
         hbox.getChildren().addAll(label, canNodeCombo);
     }
 
@@ -136,7 +150,7 @@ public class LeftPane extends VBox {
         vbox.setSpacing(5.0);
         upgradeWayGroup = new ToggleGroup();
         usb2Can = new RadioButton("USB转CAN");
-        usb2Can.setSelected(true); // 默认选中usb转can方式
+
         usb2Can.setToggleGroup(upgradeWayGroup);
         usb2Can.setUserData("can");
         vbox.getChildren().add(usb2Can);
@@ -179,12 +193,16 @@ public class LeftPane extends VBox {
     }
 
     private class Controller{
-        private SerialPortService serialPortService;
+        private SerialPortService serialPortService= new SerialPortService();;
         private SerialPortCheckService serialPortCheckService;
         private String selectedPortName;
+        private OperateStrategy operateStrategy;
+        private CanContext canContext;
+        private UartContext uartContext;
+
         public void init(){
           initPort();
-
+          initEvent();
         }
 
         private void initPort(){
@@ -224,6 +242,110 @@ public class LeftPane extends VBox {
             selectedPortName=portCombo.getValue();
         }
 
+        // todo 初始化控件的事件
+        private void initEvent(){
+            initUpgradeWayToogle();
+            initConnectBtn();
+            initCanNodeCombo();
+        }
+
+        private void initCanNodeCombo() {
+            canNodeCombo.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
+                @Override
+                public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
+                    canContext.nodeId=(byte)CanNode.getCanNode(newValue).getNodeId();
+                }
+            });
+
+        }
+        private void toogleConnectBtn(){
+            connectBtn.visibleProperty().setValue(!connectBtn.isVisible());
+        }
+
+        // todo 初始化升级方式切换的逻辑
+        private void initUpgradeWayToogle(){
+            usb2Can.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
+                    if (usb2Can.isSelected()) {
+                        System.out.println("选中USB2CAN");
+                        // 切换之前，清理之前的痕迹
+                        serialPortService.closeSeriaPort();
+                        mainWin.isLoadFile.set(false);
+                        canNodeCombo.getParent().setVisible(true);
+                        chassisCombo.getParent().setVisible(true);
+                        canContext=new CanContext();
+                        operateStrategy= new CanStrategy(serialPortService, canContext,LeftPane.this);
+
+
+                        // todo 切换后的按钮逻辑
+
+                    }
+                }
+            });
+
+            usb2RS232.selectedProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
+                    if (usb2RS232.isSelected()) {
+                        System.out.println("选中usb2RS232");
+                        serialPortService.closeSeriaPort();
+                        mainWin.isLoadFile.set(false);
+                        canNodeCombo.getParent().setVisible(false);
+                        chassisCombo.getParent().setVisible(false);
+                        uartContext=new UartContext();
+                        operateStrategy= new UartStrategy(serialPortService, uartContext,LeftPane.this);
+
+                        // todo 切换后的按钮逻辑
+                    }
+                }
+            });
+
+            usb2Can.setSelected(true); // 默认选中usb转can方式
+        }
+
+        private void initConnectBtn(){
+            connectBtn.setOnAction(new EventHandler<ActionEvent>() {
+                @Override
+                public void handle(ActionEvent event) {
+
+                    mainWin.isConnecting.set(true);
+                    // todo 改造成中介者模式
+                    send(Constant.CONNECT);
+//                    progressBar.setProgress(0);
+//                    progressLabel.setText("0%");
+//                    String value = portBox.getValue();
+                    String value = portCombo.getValue();
+                    PortParam portParam = new PortParam();
+                    portParam.setPortName(value);
+                    final int bauldRate = 460800;
+                    portParam.setBauldRate(bauldRate);
+                    portParam.setDataBits(PortParam.DATABITS_8);
+                    portParam.setStopBits(PortParam.STOPBITS_1);
+                    portParam.setParity(PortParam.PARITY_NONE);
+//                    textArea.appendText("\n正在连接，请稍后.....");
+                    send(Constant.LOG,"\n正在连接，请稍后.....");
+                    Task<Boolean> task = new Task<>() {
+                        @Override
+                        protected Boolean call() throws Exception {
+                            return operateStrategy.connect(portParam);
+                        }
+                    };
+
+                    task.valueProperty().addListener(new ChangeListener<Boolean>() {
+                        @Override
+                        public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
+                            if(newValue){
+                                toogleConnectBtn();
+                            }
+                            mainWin.isConnecting.set(false);
+                        }
+                    });
+                    mainWin.executorService.submit(task);
+                }
+            });
+        }
+
         private class SerialPortCheckService extends ScheduledService<List<Map<String, String>>> {
             @Override
             protected Task<List<Map<String, String>> > createTask() {
@@ -238,5 +360,28 @@ public class LeftPane extends VBox {
             }
 
         }
+    }
+
+    @Override
+    public void on(String event,Callback<Object[],Void> callback){
+        funMap.put(event,callback);
+    }
+
+    @Override
+    public void reveive(String event, Object... args) {
+        Callback<Object[], Void> callback = funMap.get(event);
+        if (callback != null) {
+            callback.call(args);
+        }
+    }
+
+    @Override
+    public void send(String event, Object... args) {
+        mediator.relay(event,args);
+    }
+
+    @Override
+    public void setMediator(Mediator mediator) {
+        this.mediator = mediator;
     }
 }
