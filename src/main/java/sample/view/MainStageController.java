@@ -316,7 +316,6 @@ public class MainStageController implements Initializable {
                 return operateStrategy.loadFileOnNet(url);
             }
         };
-        executorService.submit(task);
 
         task.valueProperty().addListener(new ChangeListener<Boolean>() {
             @Override
@@ -326,6 +325,7 @@ public class MainStageController implements Initializable {
                 isLoadFile.set(newValue);
             }
         });
+        executorService.submit(task);
 
 
     }

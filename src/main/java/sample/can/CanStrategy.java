@@ -395,6 +395,14 @@ public class CanStrategy extends AbstractStrategy  {
     public boolean upgrade(){
         canContext.totalSize=canContext.data.size();
 
+        boolean sendVersionFlag = sendVersionCMD();
+        if(!sendVersionFlag){
+            updateMessage("固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
+            log.error("\nsendVersionCMD 固件版本信息校验不通过,请检查固件是否匹配或重新上电!");
+            return false;
+        }
+        log.debug("sendVersionCMD成功");
+
         log.debug("开始擦除");
         updateMessage("开始擦除");
 

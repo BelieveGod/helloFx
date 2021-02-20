@@ -1,6 +1,8 @@
 package sample.component;
 
 import cn.hutool.http.HttpUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.jfoenix.controls.JFXButton;
 import com.jfoenix.controls.JFXComboBox;
 import javafx.beans.value.ChangeListener;
@@ -10,6 +12,8 @@ import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Pos;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.Toggle;
@@ -19,6 +23,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Window;
 import javafx.util.Callback;
 import javafx.util.Duration;
 import lombok.SneakyThrows;
@@ -30,6 +35,7 @@ import sample.common.Constant;
 import sample.common.Mediator;
 import sample.enumeration.CanNode;
 import sample.enumeration.OperationType;
+import sample.model.AgxFile;
 import sample.service.SerialPortService;
 import sample.support.PortParam;
 import sample.uart.UartContext;
@@ -44,6 +50,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * @author LTJ
@@ -204,6 +213,8 @@ public class LeftPane extends VBox implements Colleague {
         private CanContext canContext;
         private UartContext uartContext;
 
+        private BlockingQueue<Object> blockingQueue=new LinkedBlockingDeque<>();
+
         public void init(){
           initPort();
           initEvent();
@@ -356,32 +367,86 @@ public class LeftPane extends VBox implements Colleague {
 
         // todo
         public void onCheckUpgrateBtn(ActionEvent event){
-            // 1. 发送当前版本信息、升级方式、can节点、车型等到服务器获取最新版本信息
-            String text = ((RadioButton) upgradeWayGroup.getSelectedToggle()).getText();
-            OperationType operationType = OperationType.get(text);
-            HashMap<String, Object> paramMap = new HashMap<>();
-            paramMap.put("upgradeWay", text);
-            switch (operationType){
-                case CAN:
-                    paramMap.put("version", new String(canContext.getVersionBuf));
-                    break;
-                case RS232:
-                    paramMap.put("version", new String(ByteUtils.deBoxed(uartContext.get_Version)));
-                    break;
-            }
+            try {
+                // 1. 发送当前版本信息、升级方式、can节点、车型等到服务器获取最新版本信息
+                String text = ((RadioButton) upgradeWayGroup.getSelectedToggle()).getText();
+                OperationType operationType = OperationType.get(text);
+                HashMap<String, Object> paramMap = new HashMap<>();
+                paramMap.put("upgradeWay", text);
+                switch (operationType){
+                    case CAN:
+                        paramMap.put("version", new String(canContext.getVersionBuf));
+                        break;
+                    case RS232:
+                        paramMap.put("version", new String(ByteUtils.deBoxed(uartContext.get_Version)));
+                        break;
+                }
 //            String s = HttpUtil.get("localhost:8080/firmware/checkVersion", paramMap);
-            new Thread(()->{
+                new Thread(()->{
 
-                String s = HttpUtil.get("www.baidu.com");
-            }).start();
+                    String s = HttpUtil.get("localhost:8080/firmware/checkVersion",paramMap);
+                    System.out.println("s = " + s);
+                    JSONObject jsonObject = JSONUtil.parseObj(s);
+                    AgxFile agxFile = new AgxFile();
+                    agxFile.setName(jsonObject.getStr("name"));
+                    agxFile.setUrl(jsonObject.getStr("url"));
+                    agxFile.setInfo(jsonObject.getStr("info"));
 
-            // 2. 弹窗显示信息，询问用户是否升级
+                    blockingQueue.offer(agxFile);
+                }).start();
 
-            // 2.1 如果用户取消，则停止
+                // 2. 弹窗显示信息，询问用户是否升级
+                AgxFile agxFile = ((AgxFile) blockingQueue.take());
+                ConfirmUpgrade dialog=new ConfirmUpgrade(agxFile);
+                Window window = LeftPane.this.getScene().getWindow();
+                Boolean aBoolean = dialog.showOpenDialog(window);
+                System.out.println("aBoolean = " + aBoolean);
 
-            // 2.2 如果用户确定，则加载联网的文件
 
-            // 2.4 加载完成后，进行升级
+                // 2.1 如果用户取消，则停止
+                if(!aBoolean){
+                    return ;
+                }
+                // 2.2 如果用户确定，则加载联网的文件
+//                byte[] bytes1= HttpUtil.downloadBytes(agxFile.getUrl());
+//                System.out.println("bytes1.length = " + bytes1.length);
+                // 2.4 加载完成后,解析文件
+                Task<Boolean> task=new Task<>(){
+                    @Override
+                    protected Boolean call() throws Exception {
+                        Boolean flag= operateStrategy.loadFileOnNet(agxFile.getUrl());
+                        if(!flag){
+                            // 加载文件失败就跳出
+                            return flag;
+                        }
+                        // 2.5 解析完升级
+                        flag=operateStrategy.upgrade();
+
+                        return flag;
+                    }
+                };
+
+                // 成功弹出窗口提示
+                task.valueProperty().addListener(new ChangeListener<Boolean>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
+//                        disConnectBtn.fire();
+                        if(newValue){
+                            Alert alert = new Alert(AlertType.INFORMATION, "升级成功");
+                            alert.showAndWait().ifPresent(response->{
+                            });
+                        }else{
+                            Alert alert = new Alert(AlertType.INFORMATION, "升级失败");
+                            alert.showAndWait().ifPresent(response->{
+                            });
+                        }
+                    }
+                });
+                mainWin.executorService.submit(task);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
         }
 
         private class SerialPortCheckService extends ScheduledService<List<Map<String, String>>> {

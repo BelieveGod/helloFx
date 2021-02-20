@@ -99,7 +99,7 @@ public class CenterPane extends VBox implements Colleague {
 
     public void updateProgress(double percentage){
         progressBar.setProgress(percentage);
-        int d=(int)percentage*100;
+        int d=(int)(percentage*100);
         label.setText(String.format("%d%%",d));
     }
 
