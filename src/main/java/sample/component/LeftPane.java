@@ -1,5 +1,6 @@
 package sample.component;
 
+import cn.hutool.http.HttpUtil;
 import com.jfoenix.controls.JFXButton;
 import com.jfoenix.controls.JFXComboBox;
 import javafx.beans.value.ChangeListener;
@@ -28,10 +29,13 @@ import sample.common.Colleague;
 import sample.common.Constant;
 import sample.common.Mediator;
 import sample.enumeration.CanNode;
+import sample.enumeration.OperationType;
 import sample.service.SerialPortService;
 import sample.support.PortParam;
 import sample.uart.UartContext;
 import sample.uart.UartStrategy;
+import sample.util.ByteUtils;
+import sample.util.HexUtils;
 import sample.view.MainStageController;
 
 import java.util.HashMap;
@@ -149,12 +153,12 @@ public class LeftPane extends VBox implements Colleague {
         VBox vbox = new VBox();
         vbox.setSpacing(5.0);
         upgradeWayGroup = new ToggleGroup();
-        usb2Can = new RadioButton("USB转CAN");
+        usb2Can = new RadioButton(OperationType.CAN.getChinese());
 
         usb2Can.setToggleGroup(upgradeWayGroup);
         usb2Can.setUserData("can");
         vbox.getChildren().add(usb2Can);
-        usb2RS232 = new RadioButton("USB转RS232");
+        usb2RS232 = new RadioButton(OperationType.RS232.getChinese());
         usb2RS232.setToggleGroup(upgradeWayGroup);
         usb2RS232.setUserData("rs232");
         vbox.getChildren().add(usb2RS232);
@@ -247,6 +251,7 @@ public class LeftPane extends VBox implements Colleague {
             initUpgradeWayToogle();
             initConnectBtn();
             initCanNodeCombo();
+            initCheckUpgrateBtn();
         }
 
         private void initCanNodeCombo() {
@@ -304,46 +309,79 @@ public class LeftPane extends VBox implements Colleague {
             usb2Can.setSelected(true); // 默认选中usb转can方式
         }
 
-        private void initConnectBtn(){
-            connectBtn.setOnAction(new EventHandler<ActionEvent>() {
-                @Override
-                public void handle(ActionEvent event) {
+        private void initConnectBtn() {
+            connectBtn.setOnAction(this::onConnect);
+        }
+        public void onConnect(ActionEvent event) {
 
-                    mainWin.isConnecting.set(true);
-                    // todo 改造成中介者模式
-                    send(Constant.CONNECT);
+            mainWin.isConnecting.set(true);
+            // todo 改造成中介者模式
+            send(Constant.CONNECT);
 //                    progressBar.setProgress(0);
 //                    progressLabel.setText("0%");
 //                    String value = portBox.getValue();
-                    String value = portCombo.getValue();
-                    PortParam portParam = new PortParam();
-                    portParam.setPortName(value);
-                    final int bauldRate = 460800;
-                    portParam.setBauldRate(bauldRate);
-                    portParam.setDataBits(PortParam.DATABITS_8);
-                    portParam.setStopBits(PortParam.STOPBITS_1);
-                    portParam.setParity(PortParam.PARITY_NONE);
+            String value = portCombo.getValue();
+            PortParam portParam = new PortParam();
+            portParam.setPortName(value);
+            final int bauldRate = 460800;
+            portParam.setBauldRate(bauldRate);
+            portParam.setDataBits(PortParam.DATABITS_8);
+            portParam.setStopBits(PortParam.STOPBITS_1);
+            portParam.setParity(PortParam.PARITY_NONE);
 //                    textArea.appendText("\n正在连接，请稍后.....");
-                    send(Constant.LOG,"\n正在连接，请稍后.....");
-                    Task<Boolean> task = new Task<>() {
-                        @Override
-                        protected Boolean call() throws Exception {
-                            return operateStrategy.connect(portParam);
-                        }
-                    };
+            send(Constant.LOG,"\n正在连接，请稍后.....");
+            Task<Boolean> task = new Task<>() {
+                @Override
+                protected Boolean call() throws Exception {
+                    return operateStrategy.connect(portParam);
+                }
+            };
 
-                    task.valueProperty().addListener(new ChangeListener<Boolean>() {
-                        @Override
-                        public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
-                            if(newValue){
-                                toogleConnectBtn();
-                            }
-                            mainWin.isConnecting.set(false);
-                        }
-                    });
-                    mainWin.executorService.submit(task);
+            task.valueProperty().addListener(new ChangeListener<Boolean>() {
+                @Override
+                public void changed(ObservableValue<? extends Boolean> observableValue, Boolean oldValue, Boolean newValue) {
+                    if(newValue){
+                        toogleConnectBtn();
+                    }
+                    mainWin.isConnecting.set(false);
                 }
             });
+            mainWin.executorService.submit(task);
+        }
+
+        // todo
+        private void initCheckUpgrateBtn(){
+            checkUpgrateBtn.setOnAction(this::onCheckUpgrateBtn);
+        }
+
+        // todo
+        public void onCheckUpgrateBtn(ActionEvent event){
+            // 1. 发送当前版本信息、升级方式、can节点、车型等到服务器获取最新版本信息
+            String text = ((RadioButton) upgradeWayGroup.getSelectedToggle()).getText();
+            OperationType operationType = OperationType.get(text);
+            HashMap<String, Object> paramMap = new HashMap<>();
+            paramMap.put("upgradeWay", text);
+            switch (operationType){
+                case CAN:
+                    paramMap.put("version", new String(canContext.getVersionBuf));
+                    break;
+                case RS232:
+                    paramMap.put("version", new String(ByteUtils.deBoxed(uartContext.get_Version)));
+                    break;
+            }
+//            String s = HttpUtil.get("localhost:8080/firmware/checkVersion", paramMap);
+            new Thread(()->{
+
+                String s = HttpUtil.get("www.baidu.com");
+            }).start();
+
+            // 2. 弹窗显示信息，询问用户是否升级
+
+            // 2.1 如果用户取消，则停止
+
+            // 2.2 如果用户确定，则加载联网的文件
+
+            // 2.4 加载完成后，进行升级
         }
 
         private class SerialPortCheckService extends ScheduledService<List<Map<String, String>>> {
