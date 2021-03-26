@@ -1,0 +1,18 @@
+.root{
+  /*-fx-background-color: #2E2E2E;*/
+}
+
+.root .button{
+  -fx-background-color: yellow;
+}
+
+.field-set {
+  -fx-border-color: black;
+  -fx-border-width: 2px;
+  -fx-padding: 10px;
+}
+
+.field-set .button{
+  -fx-translate-x: 20;
+  -fx-translate-y: 30;
+}

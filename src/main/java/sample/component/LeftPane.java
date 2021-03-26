@@ -5,6 +5,7 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.jfoenix.controls.JFXButton;
 import com.jfoenix.controls.JFXComboBox;
+import com.jfoenix.svg.SVGGlyph;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.concurrent.ScheduledService;
@@ -14,15 +15,23 @@ import javafx.event.EventHandler;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.Toggle;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.Paint;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.Window;
 import javafx.util.Callback;
 import javafx.util.Duration;
@@ -123,7 +132,26 @@ public class LeftPane extends VBox implements Colleague {
 
         checkUpgrateBtn=createButton("检查升级");
 
-        vbox1.getChildren().addAll(stackPane, checkUpgrateBtn);
+        // todo 测试
+        JFXButton button = new JFXButton("返回");
+        Button button1 = new Button("嵌套");
+        SVGPath svgPath=new SVGPath();
+        svgPath.setFill(Color.BLUE);
+        svgPath.setContent("m208.5,80.45313c-8,6 -25.13702,13.67206 -47,23c-18.1176,7.72997 -29.23738,15.73766 -37,23c-3.09818,2.8985 -4,6 -5,9c-1,3 -0.01624,11.01277 11,25c14.97795,19.0174 31.47818,38.47775 48,56c12.61253,13.37625 27.17239,26.79065 43,40c7.07832,5.90741 10.61731,9.07611 11,10c0.5412,1.30655 2.4568,-3.88531 4,-11c4.28691,-19.76418 8.22777,-44.92599 13,-60c3.15112,-9.95341 5,-15 6,-15c1,0 9.00906,0.92987 17,2c14.017,1.87714 25.98669,5.20776 40,6c23.98251,1.35585 39.01035,1.86458 53,3c11.00916,0.89351 21,2 28,2c4,0 10.05551,0.51059 21,2c11.07822,1.50761 17,2 19,2c1,0 1,-1 1,-4c0,-6 -0.36252,-12.00822 0,-20c0.50052,-11.03401 5.7847,-26.52368 11,-36c4.74869,-8.62845 6.4588,-12.69344 7,-14c0.38269,-0.92388 -3.96198,-1.15871 -12,-3c-23.89636,-5.47399 -59.95663,-11.25107 -94,-17c-30.96225,-5.22863 -47,-6 -56,-6c-1,0 -3.49829,-5.93797 -4,-12c-1.15472,-13.9523 -1.90927,-26.31513 1,-38c1.84,-7.39016 4,-11 4,-13c0,-1 0.23462,-2.15224 1,-4c0.5412,-1.30656 1,-2 1,-3c0,-1 -0.01459,-2.29561 -3,-2c-5.07422,0.50245 -17.18228,5.59136 -31,12c-16.22809,7.52657 -32,16 -44,22c-10,5 -18.37201,7.38509 -22,10c-2.29454,1.65381 -4.4588,3.69344 -5,5c-0.38269,0.92388 -0.4588,2.69344 -1,4c-1.14806,2.77164 0,6 0,7c0,1 0,2 0,3c0,1 0,3 0,5l0,1");
+        Region region = new Region();
+        region.setShape(svgPath);
+        region.setMinSize(100,100 );
+        region.setPrefSize(100, 100);
+        region.setMaxSize(100, 100);
+        region.setBackground(new Background(new BackgroundFill(Color.GREEN,null,null)));
+
+        button.setTooltip(new Tooltip("返回"));
+//        button.setGraphic(region);
+        button.setShape(svgPath);
+        button1.setShape(svgPath);
+//        ((BorderPane) this.getParent()).setShape(svgPath);
+        this.setShape(svgPath);
+        vbox1.getChildren().addAll(stackPane, checkUpgrateBtn,button,button1);
 
     }
 
