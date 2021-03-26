@@ -9,12 +9,34 @@ import javafx.event.ActionEvent;
 import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Orientation;
+import javafx.scene.Cursor;
 import javafx.scene.Group;
 import javafx.scene.Scene;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.RadioButton;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
+import javafx.scene.control.Slider;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.image.Image;
+import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.Border;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.BorderStroke;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import sample.component.LeftPane;
@@ -22,6 +44,8 @@ import sample.component.MainWin;
 import sample.view.MainStageController;
 
 import java.net.URL;
+import java.util.Locale;
+import java.util.ResourceBundle;
 
 public class Main extends Application {
     private Stage primaryStage;
@@ -40,8 +64,9 @@ public class Main extends Application {
     public void start(Stage primaryStage) throws Exception{
         this.primaryStage=primaryStage;
 //        initRootLayout();
-//        initTestLayout();
-        initMain();
+        initTestLayout();
+//        initResourceLayout();
+//        initMain();
     }
 
 
@@ -68,33 +93,85 @@ public class Main extends Application {
     }
 
     public void initTestLayout(){
+//        Pane root = new Pane();
+        StackPane root = new StackPane();
+        root.setStyle("-fx-border-color: blue;-fx-border-width: 5px");
+        BorderPane borderPane = new BorderPane();
+        borderPane.setStyle("-fx-border-color: orange;-fx-border-width: 5px");
+        AnchorPane anchorPane = new AnchorPane();
+        anchorPane.setStyle("-fx-border-color: green;-fx-border-width: 5px");
         StackPane stackPane = new StackPane();
-//        JFXButton btn = new JFXButton("对话框");
-        Button btn = new Button("对话框");
-        stackPane.getChildren().add(btn);
-        stackPane.setPrefHeight(400);
-        stackPane.setPrefWidth(400);
+        stackPane.setStyle("-fx-border-color: yellow;-fx-border-width: 5px");
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setStyle("-fx-border-color: purple;-fx-border-width: 5px");
+        VBox vBox= new VBox();
+        vBox.setStyle("-fx-border-color: blanchedalmond;-fx-border-width: 5px");
+        HBox hBox = new HBox();
+        hBox.setStyle("-fx-border-color: red;-fx-border-width: 5px");
 
-        final Scene scene = new Scene(stackPane);
-
-         dialog=new JFXDialog();
-        dialog.setDialogContainer(stackPane);
-        dialog.setContent(new Label("content"));
+        VBox vBox1 = new VBox();
+        vBox1.setStyle("-fx-border-color: black;-fx-border-width: 5px");
 
 
+        NumberAxis xAxis = new NumberAxis(-30,0,1);
+        NumberAxis yAxis = new NumberAxis(-4500,4500,750);
+        LineChart<Integer, Integer> rpmLineChart = new LineChart(xAxis,yAxis);
+        rpmLineChart.prefWidthProperty().bind(vBox1.widthProperty().multiply(0.8));
+        rpmLineChart.maxWidthProperty().bind(vBox1.widthProperty().multiply(0.8));
+
+        vBox1.getChildren().addAll(rpmLineChart);
+
+        hBox.getChildren().addAll(vBox1);
+        hBox.prefWidthProperty().bind(vBox.widthProperty().multiply(0.5));
+        hBox.maxWidthProperty().bind(vBox.widthProperty().multiply(0.5));
+
+        vBox.getChildren().addAll(hBox);
+        VBox.setVgrow(hBox, Priority.ALWAYS);
+
+        scrollPane.setContent(vBox);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setFitToWidth(true);
+        stackPane.getChildren().addAll(scrollPane);
+//        stackPane.getChildren().addAll(vBox);
+
+        anchorPane.getChildren().addAll(stackPane);
+        AnchorPane.setBottomAnchor(stackPane, 0d);
+        AnchorPane.setTopAnchor(stackPane, 0d);
+        AnchorPane.setRightAnchor(stackPane, 0d);
+        AnchorPane.setLeftAnchor(stackPane, 0d);
+
+        borderPane.setCenter(anchorPane);
+
+        root.getChildren().addAll(borderPane);
+
+        Scene scene = new Scene(root, 1000, 750);
+        primaryStage.setWidth(1000);
+        primaryStage.setWidth(750);
         primaryStage.setScene(scene);
-        dialog.setPrefWidth(200);
-        dialog.setPrefHeight(200);
-
         primaryStage.show();
-        alert = new JFXAlert(primaryStage);
-        alert.setContent(new Label("content"));
-        alert.setSize(200, 200);
+    }
+
+    public void initResourceLayout(){
+        ResourceBundle message = ResourceBundle.getBundle("language/message", Locale.CHINA);
+        String cancelkey = message.getString("cancelkey");
+        VBox root = new VBox();
+        Button cancelBtn = new Button(cancelkey);
+        StackPane stackPane = new StackPane();
+        Separator separator=new Separator(Orientation.HORIZONTAL);
+        Label label = new Label("数据");
+        stackPane.getChildren().addAll(separator, label);
+
+        // 图表
+        NumberAxis yAxis = new NumberAxis("y laebl", -10, 10, 1);
+        NumberAxis xAxis = new NumberAxis("x laebl", -5, 5, 1);
+
+        LineChart lineChart = new LineChart(xAxis,yAxis);
 
 
-      btn.setOnAction(this::showDialog);
-
-
+        root.getChildren().addAll(cancelBtn,stackPane,lineChart);
+        final Scene scene = new Scene(root);
+        primaryStage.setScene(scene);
+        primaryStage.show();
     }
 
     private void showDialog(ActionEvent event){
