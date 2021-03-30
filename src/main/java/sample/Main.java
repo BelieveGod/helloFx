@@ -39,6 +39,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.shape.SVGPath;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import sample.component.ChartUI;
 import sample.component.LeftPane;
 import sample.component.MainWin;
 import sample.view.MainStageController;
@@ -121,7 +122,9 @@ public class Main extends Application {
 
         vBox1.getChildren().addAll(rpmLineChart);
 
-        hBox.getChildren().addAll(vBox1);
+        ChartUI chartUI = ChartUI.getInstance();
+        chartUI.init();
+        hBox.getChildren().addAll(chartUI);
         hBox.prefWidthProperty().bind(vBox.widthProperty().multiply(0.5));
         hBox.maxWidthProperty().bind(vBox.widthProperty().multiply(0.5));
 
